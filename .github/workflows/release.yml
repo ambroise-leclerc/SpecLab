@@ -68,7 +68,10 @@ jobs:
       if: matrix.platform == 'linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-14 g++-14 ninja-build
+        # Add GCC 15 repository
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
+        sudo apt-get install -y gcc-15 g++-15 ninja-build
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -104,8 +107,8 @@ jobs:
         cmake -B release-build \
           -G ${{ matrix.cmake-generator }} \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_COMPILER=g++-14 \
-          -DCMAKE_C_COMPILER=gcc-14 \
+          -DCMAKE_CXX_COMPILER=g++-15 \
+          -DCMAKE_C_COMPILER=gcc-15 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \

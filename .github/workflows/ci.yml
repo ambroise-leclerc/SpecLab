@@ -120,10 +120,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # GCC 14+ - Available for C++23 modules support on Ubuntu 24.04
+          # GCC 15+ - Required for C++23 modules support
           - ubuntu-version: "24.04"
-            gcc-version: 14
-            install-gcc: "gcc-14 g++-14"
+            gcc-version: 15
+            install-gcc: "gcc-15 g++-15"
     
     steps:
     - name: Checkout code
@@ -134,6 +134,9 @@ jobs:
 
     - name: Install dependencies
       run: |
+        sudo apt-get update
+        # Add GCC 15 repository
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
         sudo apt-get update
         sudo apt-get install -y \
           ${{ matrix.install-gcc }} \
@@ -287,7 +290,7 @@ jobs:
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:
-        name: linux-gcc14-artifacts
+        name: linux-gcc15-artifacts
         path: artifacts/linux
 
     - name: Validate IEC 62304 Compliance
@@ -347,7 +350,10 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-14 g++-14 ninja-build
+        # Add GCC 15 repository
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
+        sudo apt-get install -y gcc-15 g++-15 ninja-build
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -359,7 +365,7 @@ jobs:
         cmake -B build \
           -G Ninja \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_CXX_COMPILER=g++-14 \
+          -DCMAKE_CXX_COMPILER=g++-15 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF
         cmake --build build --parallel

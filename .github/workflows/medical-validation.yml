@@ -150,7 +150,10 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-14 g++-14 ninja-build
+        # Add GCC 15 repository
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
+        sudo apt-get install -y gcc-15 g++-15 ninja-build
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -161,7 +164,7 @@ jobs:
       run: |
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_COMPILER=g++-14 \
+          -DCMAKE_CXX_COMPILER=g++-15 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_ISO14971_VALIDATION=ON
         cmake --build build --parallel
