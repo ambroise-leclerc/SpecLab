@@ -211,10 +211,9 @@ jobs:
           build/examples/pulse_oximeter_example
 
   # ============================================================================
-  # Linux Clang Builds (Alternative Compiler) - TEMPORARILY DISABLED
-  # TODO: Clang 20 container doesn't support import std yet
+  # Linux Clang Builds (Alternative Compiler)
   # ============================================================================
-  linux-clang-disabled:
+  linux-clang:
     name: Linux Clang ${{ matrix.clang-version }}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     container:
@@ -273,7 +272,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
           -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang-version }} \
           -DCMAKE_C_COMPILER=clang-${{ matrix.clang-version }} \
-          -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+          -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fmodules" \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
