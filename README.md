@@ -2,7 +2,7 @@
 
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/compiler_support)
 [![CMake](https://img.shields.io/badge/CMake-4.0+-green.svg)](https://cmake.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE)
 [![Medical Device](https://img.shields.io/badge/Medical%20Device-IEC%2062304-red.svg)](https://www.iso.org/standard/64686.html)
 
 A modern C++23 modules-based testing framework specifically designed for medical devices. SpecLab provides BDD (Behavior-Driven Development) testing capabilities with built-in compliance for IEC 62304, ISO 13485, and ISO 14971 standards through structured test execution, audit trails, and medical device-specific features.
@@ -354,7 +354,7 @@ clang-tidy -p build include/**/*.cppm
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the European Union Public License v1.2 - see the [LICENSE](LICENSE) file for details.
 
 ## Medical Device Notice
 
