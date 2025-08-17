@@ -8,6 +8,7 @@ import speclab.core.functionalapi;
 import speclab.core.requirementapi;
 import speclab.medical.functionalapi;
 import speclab.core.assertions;
+import speclab.core.requirements;
 
 import std;
 
@@ -370,6 +371,25 @@ void example_iec62304_process() {
 }
 
 /**
+ * @brief Phase 3 demo: Configuring requirements and exporting HTML, showing risk-based ordering.
+ */
+void phase3_demo() {
+    SetRequirementsConfig({ .abortOnCriticalGaps = false, .riskBasedOrdering = true });
+    RegisterRequirement({ .id="REQ-CRIT-01", .description="Critical safety shutdown", .riskLevel="CRITICAL", .safetyClass="CLASS_C", .requiresAudit=true, .requiresValidation=true });
+    RegisterRequirement({ .id="REQ-HIGH-02", .description="High priority alarm latency", .riskLevel="HIGH", .safetyClass="CLASS_B", .requiresAudit=true, .requiresValidation=true });
+
+    TestSuite suite("Phase3RiskOrder");
+    suite.addTest("T_AlarmLatency", [](){ TestResult r; r.testId="T_AlarmLatency"; r.status=TestStatus::Passed; return r; });
+    suite.addTest("T_Shutdown", [](){ TestResult r; r.testId="T_Shutdown"; r.status=TestStatus::Passed; return r; });
+    LinkTestRequirement("T_Shutdown", "REQ-CRIT-01");
+    LinkTestRequirement("T_AlarmLatency", "REQ-HIGH-02");
+
+    auto results = suite.execute();
+    auto html = ExportTraceMatrixHTML();
+    std::println("Trace HTML size: {} bytes", html.size());
+}
+
+/**
  * @brief Main function to run all examples
  */
 int main() {
@@ -411,5 +431,6 @@ int main() {
         return 1;
     }
     
+    phase3_demo();
     return 0;
 }
