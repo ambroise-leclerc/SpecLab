@@ -139,7 +139,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         fetch-depth: 0
 
     - name: Install dependencies
@@ -230,19 +229,22 @@ jobs:
             install-clang: "clang-20 libc++-20-dev libc++abi-20-dev"
     
     steps:
+    - name: Install Git and essential tools
+      run: |
+        # Install Git first to enable proper checkout
+        apt-get update
+        apt-get install -y git
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         fetch-depth: 0
 
     - name: Install dependencies
       run: |
-        # Update package lists and install essential tools
-        apt-get update
+        # Install remaining dependencies
         apt-get install -y \
           ninja-build \
-          git \
           wget \
           curl \
           pkg-config \
@@ -372,10 +374,7 @@ jobs:
         # Add GCC 15 repository
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
         sudo apt-get update
-        # Add ubuntu-toolchain-r/test PPA for latest GCC
-        add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        apt-get update
-        apt-get install -y gcc-15 g++-15 ninja-build || {
+        sudo apt-get install -y gcc-15 g++-15 ninja-build || {
           echo "GCC 15 not available, using container approach instead"
           exit 1
         }
