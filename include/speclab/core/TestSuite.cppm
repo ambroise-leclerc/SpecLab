@@ -7,6 +7,7 @@ export module speclab.core.testsuite;
 import std;
 import speclab.core.testresult;
 import speclab.core.testcase;
+import speclab.core.requirements; // ensure requirements available
 
 export namespace speclab::core {
 
@@ -114,29 +115,22 @@ export namespace speclab::core {
          */
         TestResultCollection execute(bool parallel = false) {
             TestResultCollection results;
-            
             try {
-                // Suite setup
                 setUpSuite();
-                
                 if (parallel && testCases_.size() > 1) {
                     executeParallel(results);
                 } else {
                     executeSequential(results);
                 }
-                
-                // Suite teardown
                 tearDownSuite();
-                
             } catch (const std::exception& e) {
-                // Handle suite-level failures
-                TestResult suiteFailure(TestStatus::Error, 
-                    std::format("Suite execution failed: {}", e.what()));
+                TestResult suiteFailure(TestStatus::Error, std::format("Suite execution failed: {}", e.what()));
                 suiteFailure.testId = std::format("{}_SUITE_FAILURE", name_);
                 suiteFailure.suiteName = name_;
                 results.addResult(std::move(suiteFailure));
             }
-            
+            // Phase 2: add coverage validation synthetic result
+            speclab::core::AddCoverageValidationResult(results);
             return results;
         }
         
@@ -149,28 +143,22 @@ export namespace speclab::core {
         TestResultCollection executeFiltered(std::string_view filter, bool parallel = false) {
             TestResultCollection results;
             std::regex filterRegex(std::string(filter));
-            
             try {
                 setUpSuite();
-                
                 auto matchingTests = getMatchingTests(filterRegex);
-                
                 if (parallel && matchingTests.size() > 1) {
                     executeTestsParallel(matchingTests, results);
                 } else {
                     executeTestsSequential(matchingTests, results);
                 }
-                
                 tearDownSuite();
-                
             } catch (const std::exception& e) {
-                TestResult suiteFailure(TestStatus::Error, 
-                    std::format("Filtered suite execution failed: {}", e.what()));
+                TestResult suiteFailure(TestStatus::Error, std::format("Filtered suite execution failed: {}", e.what()));
                 suiteFailure.testId = std::format("{}_FILTERED_FAILURE", name_);
                 suiteFailure.suiteName = name_;
                 results.addResult(std::move(suiteFailure));
             }
-            
+            speclab::core::AddCoverageValidationResult(results);
             return results;
         }
         
@@ -263,10 +251,49 @@ export namespace speclab::core {
          * @param results Result collection to populate
          */
         void executeSequential(TestResultCollection& results) {
+            // Phase 3: risk-based ordering if enabled
+            auto& reg = RequirementRegistry::instance();
+            auto cfg = reg.getConfig();
+            if (cfg.riskBasedOrdering) {
+                // Build vector of indices & risk score
+                std::vector<std::pair<int, TestCase*>> ordered;
+                ordered.reserve(testCases_.size());
+                for (auto& tc : testCases_) {
+                    if (tc && tc->isEnabled()) {
+                        int score = TestRiskScore(tc->getId());
+                        ordered.emplace_back(-score, tc.get()); // negative for descending
+                    }
+                }
+                std::ranges::sort(ordered, [](auto& a, auto& b){ return a.first < b.first; });
+                // Optional early abort pre-run if uncovered critical and abort flag set
+                if (cfg.abortOnCriticalGaps && HasUncoveredCriticalRequirements()) {
+                    TestResult pre;
+                    pre.testId = "REQUIREMENT_COVERAGE_PRE";
+                    pre.status = TestStatus::Critical;
+                    pre.message = "Uncovered CRITICAL requirements detected before execution";
+                    auto missing = GetUncoveredCriticalRequirementIds();
+                    if (!missing.empty()) {
+                        std::string list; for (size_t i=0;i<missing.size();++i){ if(i) list+=","; list+=missing[i]; }
+                        pre.addMetadata("missing_critical", list);
+                        pre.errorDetails = list;
+                    }
+                    results.addResult(std::move(pre));
+                    return; // skip actual tests
+                }
+                for (auto& [negScore, testPtr] : ordered) {
+                    auto result = testPtr->execute();
+                    result.suiteName = name_;
+                    speclab::core::AugmentResultWithRequirements(result); // Phase 2 augmentation
+                    results.addResult(std::move(result));
+                }
+                return; // done
+            }
+            // Fallback original behavior
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
                     auto result = test->execute();
                     result.suiteName = name_;
+                    speclab::core::AugmentResultWithRequirements(result); // Phase 2 augmentation
                     results.addResult(std::move(result));
                 }
             }
@@ -279,25 +306,20 @@ export namespace speclab::core {
         void executeParallel(TestResultCollection& results) {
             std::vector<std::future<TestResult>> futures;
             futures.reserve(testCases_.size());
-            
-            // Launch all tests
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
                     futures.push_back(std::async(std::launch::async, [&test, this]() {
                         auto result = test->execute();
                         result.suiteName = name_;
+                        speclab::core::AugmentResultWithRequirements(result);
                         return result;
                     }));
                 }
             }
-            
-            // Collect results
             for (auto& future : futures) {
-                try {
-                    results.addResult(future.get());
-                } catch (const std::exception& e) {
-                    TestResult errorResult(TestStatus::Error, 
-                        std::format("Parallel execution error: {}", e.what()));
+                try { results.addResult(future.get()); }
+                catch (const std::exception& e) {
+                    TestResult errorResult(TestStatus::Error, std::format("Parallel execution error: {}", e.what()));
                     errorResult.suiteName = name_;
                     results.addResult(std::move(errorResult));
                 }
@@ -327,11 +349,11 @@ export namespace speclab::core {
          * @param tests Vector of test pointers to execute
          * @param results Result collection to populate
          */
-        void executeTestsSequential(const std::vector<TestCase*>& tests, 
-                                   TestResultCollection& results) {
+        void executeTestsSequential(const std::vector<TestCase*>& tests, TestResultCollection& results) {
             for (auto* test : tests) {
                 auto result = test->execute();
                 result.suiteName = name_;
+                speclab::core::AugmentResultWithRequirements(result);
                 results.addResult(std::move(result));
             }
         }
@@ -341,25 +363,21 @@ export namespace speclab::core {
          * @param tests Vector of test pointers to execute
          * @param results Result collection to populate
          */
-        void executeTestsParallel(const std::vector<TestCase*>& tests, 
-                                TestResultCollection& results) {
+        void executeTestsParallel(const std::vector<TestCase*>& tests, TestResultCollection& results) {
             std::vector<std::future<TestResult>> futures;
             futures.reserve(tests.size());
-            
             for (auto* test : tests) {
                 futures.push_back(std::async(std::launch::async, [test, this]() {
                     auto result = test->execute();
                     result.suiteName = name_;
+                    speclab::core::AugmentResultWithRequirements(result);
                     return result;
                 }));
             }
-            
             for (auto& future : futures) {
-                try {
-                    results.addResult(future.get());
-                } catch (const std::exception& e) {
-                    TestResult errorResult(TestStatus::Error, 
-                        std::format("Parallel execution error: {}", e.what()));
+                try { results.addResult(future.get()); }
+                catch (const std::exception& e) {
+                    TestResult errorResult(TestStatus::Error, std::format("Parallel execution error: {}", e.what()));
                     errorResult.suiteName = name_;
                     results.addResult(std::move(errorResult));
                 }
