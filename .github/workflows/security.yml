@@ -74,6 +74,9 @@ jobs:
   sast-analysis:
     name: Static Application Security Testing
     runs-on: ubuntu-latest
+    container:
+      image: gcc:15
+      options: --user root
     
     steps:
     - name: Checkout code
@@ -87,11 +90,8 @@ jobs:
 
     - name: Setup build environment
       run: |
-        sudo apt-get update
-        # Add GCC 15 repository
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 ninja-build
+        apt-get update
+        apt-get install -y ninja-build git wget curl pkg-config
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest

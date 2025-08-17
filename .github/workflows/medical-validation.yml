@@ -141,6 +141,9 @@ jobs:
   iso14971-validation:
     name: ISO 14971 Risk Management Validation
     runs-on: ubuntu-latest
+    container:
+      image: gcc:15
+      options: --user root
     if: github.event.inputs.validation_type == 'iso14971' || github.event.inputs.validation_type == 'full' || github.event.inputs.validation_type == ''
     
     steps:
@@ -149,11 +152,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        # Add GCC 15 repository
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 ninja-build
+        apt-get update
+        apt-get install -y ninja-build git wget curl pkg-config
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest

@@ -8,6 +8,13 @@ on:
   schedule:
     # Run nightly builds at 2 AM UTC
     - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug mode'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: read
@@ -116,11 +123,14 @@ jobs:
   linux-gcc:
     name: Linux GCC ${{ matrix.gcc-version }}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    container: 
+      image: gcc:15
+      options: --user root
     strategy:
       fail-fast: false
       matrix:
         include:
-          # GCC 15+ - Required for C++23 modules support
+          # GCC 15+ - Required for C++23 modules support (using official GCC container)
           - ubuntu-version: "24.04"
             gcc-version: 15
             install-gcc: "gcc-15 g++-15"
@@ -134,14 +144,14 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        # Add GCC 15 repository
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update
-        sudo apt-get install -y \
-          ${{ matrix.install-gcc }} \
+        # Update package lists and install essential tools
+        apt-get update
+        apt-get install -y \
           ninja-build \
-          ccache
+          git \
+          wget \
+          curl \
+          pkg-config
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -150,10 +160,12 @@ jobs:
 
     - name: Setup GCC
       run: |
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${{ matrix.gcc-version }} 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-${{ matrix.gcc-version }} 100
+        # GCC 15 is already available in the container
         gcc --version
         g++ --version
+        # Create versioned symlinks for consistency
+        ln -sf /usr/local/bin/gcc /usr/local/bin/gcc-15
+        ln -sf /usr/local/bin/g++ /usr/local/bin/g++-15
 
     - name: Cache CMake build
       uses: actions/cache@v3
@@ -205,11 +217,14 @@ jobs:
   linux-clang:
     name: Linux Clang ${{ matrix.clang-version }}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    container:
+      image: silkeh/clang:20
+      options: --user root
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Clang 20+ - Required for C++23 modules support
+          # Clang 20+ - Required for C++23 modules support (using Clang container)
           - ubuntu-version: "24.04"
             clang-version: 20
             install-clang: "clang-20 libc++-20-dev libc++abi-20-dev"
@@ -223,14 +238,16 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Add LLVM repository for latest Clang
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main"
-        sudo apt-get update
-        sudo apt-get install -y \
-          ${{ matrix.install-clang }} \
+        # Update package lists and install essential tools
+        apt-get update
+        apt-get install -y \
           ninja-build \
-          ccache
+          git \
+          wget \
+          curl \
+          pkg-config \
+          libc++-dev \
+          libc++abi-dev
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -239,10 +256,12 @@ jobs:
 
     - name: Setup Clang
       run: |
-        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ matrix.clang-version }} 100
-        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${{ matrix.clang-version }} 100
+        # Clang 20 is already available in the container
         clang --version
         clang++ --version
+        # Create versioned symlinks for consistency
+        ln -sf /usr/bin/clang /usr/bin/clang-20
+        ln -sf /usr/bin/clang++ /usr/bin/clang++-20
 
     - name: Configure CMake
       run: |
@@ -353,7 +372,13 @@ jobs:
         # Add GCC 15 repository
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
         sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 ninja-build
+        # Add ubuntu-toolchain-r/test PPA for latest GCC
+        add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        apt-get update
+        apt-get install -y gcc-15 g++-15 ninja-build || {
+          echo "GCC 15 not available, using container approach instead"
+          exit 1
+        }
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
