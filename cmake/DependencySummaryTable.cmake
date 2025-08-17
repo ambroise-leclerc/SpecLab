@@ -1,0 +1,58 @@
+# Dependency Summary Table for MddLog
+
+function(print_dependency_summary)
+    message(STATUS "")
+    message(STATUS "=== MddLog Dependency Summary ===")
+    message(STATUS "")
+    message(STATUS "Core Dependencies:")
+    message(STATUS "  - C++23 Standard Library: import std (built-in)")
+    message(STATUS "  - CMake: ${CMAKE_VERSION}")
+    message(STATUS "  - Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+    message(STATUS "")
+    
+    if(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD)
+        message(STATUS "C++23 Modules Support:")
+        message(STATUS "  - import std support: ENABLED")
+        message(STATUS "  - Experimental UUID: ${CMAKE_EXPERIMENTAL_CXX_IMPORT_STD}")
+        if(TARGET __CMAKE::CXX23)
+            message(STATUS "  - __CMAKE::CXX23 target: AVAILABLE")
+        else()
+            message(STATUS "  - __CMAKE::CXX23 target: NOT AVAILABLE")
+        endif()
+    else()
+        message(STATUS "C++23 Modules Support: NOT CONFIGURED")
+    endif()
+    
+    message(STATUS "")
+    message(STATUS "Optional Dependencies:")
+    
+    find_package(Doxygen QUIET)
+    if(DOXYGEN_FOUND)
+        message(STATUS "  - Doxygen: ${DOXYGEN_VERSION} (for documentation)")
+    else()
+        message(STATUS "  - Doxygen: NOT FOUND (documentation disabled)")
+    endif()
+    
+    message(STATUS "")
+    message(STATUS "Build Configuration:")
+    message(STATUS "  - Build Type: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "  - C++ Standard: ${CMAKE_CXX_STANDARD}")
+    message(STATUS "  - Examples: ${MDDLOG_BUILD_EXAMPLES}")
+    message(STATUS "  - Tests: ${MDDLOG_BUILD_TESTS}")
+    
+    if(DEFINED MDDLOG_BUILD_DOCS)
+        message(STATUS "  - Documentation: ${MDDLOG_BUILD_DOCS}")
+    endif()
+    
+    message(STATUS "")
+    message(STATUS "Medical Device Compliance:")
+    message(STATUS "  - IEC 62304: SUPPORTED")
+    message(STATUS "  - ISO 13485: SUPPORTED")
+    message(STATUS "  - ISO 14971: SUPPORTED (Risk Management)")
+    message(STATUS "")
+    message(STATUS "=== End Dependency Summary ===")
+    message(STATUS "")
+endfunction()
+
+# Call the function to print the summary
+print_dependency_summary()

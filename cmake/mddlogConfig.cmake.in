@@ -1,0 +1,31 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Check for C++23 support
+if(NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 23)
+    set(CMAKE_CXX_STANDARD 23)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
+
+# Check for import std support
+if(NOT DEFINED CMAKE_EXPERIMENTAL_CXX_IMPORT_STD)
+    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
+endif()
+
+# Enable C++23 modules scanning
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
+# Compiler-specific modules configuration
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fmodules>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/experimental:module>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++23>)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/mddlogTargets.cmake")
+
+check_required_components(mddlog)
