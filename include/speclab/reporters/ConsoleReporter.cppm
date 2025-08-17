@@ -88,7 +88,7 @@ export namespace speclab::reporters {
                 
                 if (!result.requirementIds.empty()) {
                     std::string reqList;
-                    for (size_t i = 0; i < result.requirementIds.size(); ++i) {
+                    for (std::size_t i = 0; i < result.requirementIds.size(); ++i) {
                         if (i > 0) reqList += ", ";
                         reqList += result.requirementIds[i];
                     }
