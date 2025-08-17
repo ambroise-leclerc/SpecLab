@@ -87,7 +87,10 @@ export namespace speclab::core {
 
         std::vector<const Requirement*> getAllRequirements() const {
             std::vector<const Requirement*> out; out.reserve(requirements_.size());
-            for (auto& [_, r] : requirements_) out.push_back(&r); return out;
+            for (auto& [_, r] : requirements_) {
+                out.push_back(&r);
+            }
+            return out;
         }
         std::vector<const Requirement*> getUncoveredHighRisk() const {
             std::vector<const Requirement*> missing;
@@ -150,8 +153,8 @@ export namespace speclab::core {
                 if (cov) ++covered;
                 if (r.riskLevel=="HIGH"||r.riskLevel=="CRITICAL") { ++high; if (cov) ++highCovered; }
             }
-            html += std::format("<p>Total requirements: {} | Covered: {} | Coverage: {:.1f}%</p>", total, covered, total? (100.0*covered/total):100.0);
-            html += std::format("<p>High/Critical: {} | Covered: {} | Coverage: {:.1f}%</p>", high, highCovered, high? (100.0*highCovered/high):100.0);
+            html += std::format("<p>Total requirements: {} | Covered: {} | Coverage: {:.1f}%</p>", total, covered, total? (100.0*static_cast<double>(covered)/static_cast<double>(total)):100.0);
+            html += std::format("<p>High/Critical: {} | Covered: {} | Coverage: {:.1f}%</p>", high, highCovered, high? (100.0*static_cast<double>(highCovered)/static_cast<double>(high)):100.0);
             html += "</body></html>";
             return html;
         }

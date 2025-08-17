@@ -267,7 +267,7 @@ export namespace speclab::medical {
             result.description = "Software risk management";
             
             bool hasRiskAnalysis = false;
-            bool hasCriticalTests = false;
+            // bool hasCriticalTests = false; // Tracked but not currently used
             bool hasRiskMitigation = false;
             std::size_t criticalFailures = testResults.getCriticalCount();
             
@@ -281,7 +281,7 @@ export namespace speclab::medical {
                 }
                 
                 if (testResult.critical()) {
-                    hasCriticalTests = true;
+                    // hasCriticalTests = true; // Variable currently unused
                     result.addEvidence("critical_failure", testResult.testId + ": " + testResult.message);
                 }
                 
