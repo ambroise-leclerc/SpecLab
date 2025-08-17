@@ -14,7 +14,7 @@ export namespace speclab {
     class TestBuilder;
     class RequirementBuilder;
     class FeatureBuilder;
-    class ParameterizedTestBuilder;
+    template<typename T> class ParameterizedTestBuilder;
 
     /**
      * @brief Step function type for Given/When/Then steps
@@ -215,6 +215,7 @@ export namespace speclab {
         
     private:
         void executeStandardTest(speclab::core::TestResult& result) {
+            (void)result; // Suppress unused parameter warning
             for (const auto& step : steps_) {
                 step.execute();
             }

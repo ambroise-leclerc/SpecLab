@@ -283,7 +283,15 @@ export namespace speclab::medical {
             }
         }
         
-    private:
+        /**
+         * @brief Default run implementation - override in derived classes
+         */
+        void run() override {
+            // Override in derived classes to implement specific medical test logic
+            recordMedicalEvent("medical_test_execution", "Executing medical device test");
+        }
+        
+    protected:
         /**
          * @brief Validate test environment meets medical device requirements
          */
@@ -396,6 +404,15 @@ export namespace speclab::medical {
             // IEC 62304 specific validation
             recordMedicalEvent("iec62304_validation", 
                 std::format("Validating {} process compliance", toString(lifecycleProcess_)));
+        }
+        
+        /**
+         * @brief Default run implementation - override in derived classes
+         */
+        void run() override {
+            // Override in derived classes to implement specific IEC 62304 test logic
+            recordMedicalEvent("iec62304_test_execution", 
+                std::format("Executing {} lifecycle process test", toString(lifecycleProcess_)));
         }
         
     private:

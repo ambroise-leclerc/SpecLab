@@ -34,7 +34,7 @@ export namespace speclab::core {
         /**
          * @brief Destructor ensuring proper cleanup
          */
-        ~TestSuite() {
+        virtual ~TestSuite() {
             if (setupCompleted_ && !teardownCompleted_) {
                 try {
                     tearDownSuite();
@@ -142,7 +142,7 @@ export namespace speclab::core {
          */
         TestResultCollection executeFiltered(std::string_view filter, bool parallel = false) {
             TestResultCollection results;
-            std::regex filterRegex(std::string(filter));
+            const std::regex filterRegex{std::string(filter)};
             try {
                 setUpSuite();
                 auto matchingTests = getMatchingTests(filterRegex);
@@ -179,6 +179,21 @@ export namespace speclab::core {
                     return test->getId() == id;
                 });
             return (it != testCases_.end()) ? it->get() : nullptr;
+        }
+        
+        /**
+         * @brief Get all test cases
+         * @return Vector of shared pointers to test cases
+         */
+        std::vector<std::shared_ptr<TestCase>> getTests() const {
+            std::vector<std::shared_ptr<TestCase>> tests;
+            tests.reserve(testCases_.size());
+            
+            for (const auto& test : testCases_) {
+                tests.push_back(std::shared_ptr<TestCase>(test.get(), [](TestCase*){})); // Non-owning shared_ptr
+            }
+            
+            return tests;
         }
         
         /**

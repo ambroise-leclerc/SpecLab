@@ -450,6 +450,7 @@ export namespace speclab::medical {
             
             for (const auto& testResult : testResults.getResults()) {
                 const auto& metadata = testResult.metadata;
+                (void)metadata; // Suppress unused variable warning
                 
                 if (testResult.testId.find("control_measure") != std::string::npos ||
                     testResult.testId.find("mitigation") != std::string::npos) {

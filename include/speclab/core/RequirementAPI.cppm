@@ -121,7 +121,7 @@ export namespace speclab {
             
             // Configure the test with requirement information
             // Note: This would need to be implemented as TestBuilder extends with medical features
-            tests_.push_back(testId);
+            tests_.push_back(std::string(testId));
             
             return builder;
         }
@@ -131,7 +131,7 @@ export namespace speclab {
          */
         template<typename ParameterType>
         ParameterizedTestBuilder<ParameterType> Test(std::string_view testId) {
-            tests_.push_back(testId);
+            tests_.push_back(std::string(testId));
             return ParameterizedTestBuilder<ParameterType>(testId);
         }
         
