@@ -450,7 +450,6 @@ export namespace speclab::medical {
             
             for (const auto& testResult : testResults.getResults()) {
                 const auto& metadata = testResult.metadata;
-                (void)metadata; // Suppress unused variable warning
                 
                 if (testResult.testId.find("control_measure") != std::string::npos ||
                     testResult.testId.find("mitigation") != std::string::npos) {
@@ -462,6 +461,11 @@ export namespace speclab::medical {
                 if (testResult.testId.find("residual_risk") != std::string::npos) {
                     hasResidualRiskAssessment = true;
                     result.addEvidence("residual_risk_test", testResult.testId);
+                }
+                
+                // Check for risk control metadata
+                if (metadata.find("control_effectiveness") != metadata.end()) {
+                    result.addEvidence("control_effectiveness", testResult.testId + ": " + metadata.at("control_effectiveness"));
                 }
             }
             

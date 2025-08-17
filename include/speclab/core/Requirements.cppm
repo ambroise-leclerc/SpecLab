@@ -144,7 +144,7 @@ export namespace speclab::core {
             }
             html += "</table>";
             // Summary
-            size_t total=requirements_.size(), covered=0, high=0, highCovered=0;
+            std::size_t total=requirements_.size(), covered=0, high=0, highCovered=0;
             for (auto& [id,r]:requirements_) {
                 bool cov = reqToTest_.contains(id) && !reqToTest_.at(id).empty();
                 if (cov) ++covered;
@@ -190,7 +190,10 @@ export namespace speclab::core {
             bool anyCritical = std::any_of(missing.begin(), missing.end(), [](const Requirement* r){ return r->riskLevel == "CRITICAL"; });
             coverageResult.status = anyCritical ? TestStatus::Critical : TestStatus::Failed;
             std::string list;
-            for (size_t i=0;i<missing.size();++i){ if(i) list += ","; list += missing[i]->id; }
+            for (std::size_t i=0;i<missing.size();++i){ 
+                if(i) list += ","; 
+                list += missing[i]->id; 
+            }
             coverageResult.message = "Uncovered high-risk requirements";
             coverageResult.errorDetails = list;
             coverageResult.addMetadata("missing_requirements", list);
