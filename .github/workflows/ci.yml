@@ -9,6 +9,11 @@ on:
     # Run nightly builds at 2 AM UTC
     - cron: '0 2 * * *'
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   CMAKE_VERSION: '4.0.3'
   BUILD_TYPE: Release
@@ -98,7 +103,7 @@ jobs:
         echo "- Standards: IEC 62304, ISO 13485, ISO 14971" >> compliance-report.md
 
     - name: Upload compliance artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-msvc-${{ matrix.arch }}-compliance
         path: |
@@ -115,10 +120,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # GCC 15+ - Required for C++23 modules support
+          # GCC 14+ - Available for C++23 modules support on Ubuntu 24.04
           - ubuntu-version: "24.04"
-            gcc-version: 15
-            install-gcc: "gcc-15 g++-15"
+            gcc-version: 14
+            install-gcc: "gcc-14 g++-14"
     
     steps:
     - name: Checkout code
@@ -183,7 +188,7 @@ jobs:
         ./pulse_oximeter_example
 
     - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: linux-gcc${{ matrix.gcc-version }}-artifacts
         path: |
@@ -274,15 +279,15 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download Windows artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: windows-msvc-x64-compliance
         path: artifacts/windows
 
     - name: Download Linux artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        name: linux-gcc15-artifacts
+        name: linux-gcc14-artifacts
         path: artifacts/linux
 
     - name: Validate IEC 62304 Compliance
@@ -315,7 +320,7 @@ jobs:
         echo "- ✅ Software configuration management" >> fda-qsr-compliance.md
 
     - name: Upload compliance reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: medical-compliance-reports
         path: |
@@ -334,7 +339,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run CodeQL Analysis
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: cpp
         queries: security-and-quality
@@ -342,7 +347,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 ninja-build
+        sudo apt-get install -y gcc-14 g++-14 ninja-build
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -354,13 +359,13 @@ jobs:
         cmake -B build \
           -G Ninja \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_CXX_COMPILER=g++-15 \
+          -DCMAKE_CXX_COMPILER=g++-14 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF
         cmake --build build --parallel
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
 
   # ============================================================================
   # Documentation and Release
@@ -450,7 +455,7 @@ jobs:
         ./pulse_oximeter_example.exe >> ../../../performance-results.txt
 
     - name: Upload Performance Results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-benchmarks
         path: performance-results.txt
