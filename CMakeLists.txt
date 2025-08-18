@@ -138,6 +138,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         COMMENT "Building std module for GCC"
     )
+    # Make speclab depend on the std module
+    add_dependencies(speclab build_std_module)
 endif()
 
 # Link to the std module if available (only in build context, not export)
