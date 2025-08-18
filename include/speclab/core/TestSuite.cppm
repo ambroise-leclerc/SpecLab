@@ -288,7 +288,7 @@ export namespace speclab::core {
                     pre.message = "Uncovered CRITICAL requirements detected before execution";
                     auto missing = GetUncoveredCriticalRequirementIds();
                     if (!missing.empty()) {
-                        std::string list; for (size_t i=0;i<missing.size();++i){ if(i) list+=","; list+=missing[i]; }
+                        std::string list; for (std::size_t i=0;i<missing.size();++i){ if(i) list+=","; list+=missing[i]; }
                         pre.addMetadata("missing_critical", list);
                         pre.errorDetails = list;
                     }
