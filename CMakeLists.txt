@@ -53,6 +53,9 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC-specific modules configuration for C++23 and import std
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/experimental:module>)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Clang modules configuration - use proper C++20 modules flag
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fmodules-ts>)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -80,8 +83,8 @@ target_sources(speclab
         include/speclab/core/Assertions.cppm
         include/speclab/core/TestCase.cppm
         include/speclab/core/TestSuite.cppm
-        include/speclab/core/FunctionalAPI.cppm
         include/speclab/core/RequirementAPI.cppm
+        include/speclab/core/FunctionalAPI.cppm
         include/speclab/core/Requirements.cppm
         include/speclab/medical/MedicalTestCase.cppm
         include/speclab/medical/ComplianceValidator.cppm

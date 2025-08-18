@@ -6,9 +6,12 @@ export module speclab.core.requirementapi;
 
 import std;
 import speclab.core.testresult;
-import speclab.core.functionalapi;
 
 export namespace speclab {
+
+    // Forward declarations from functionalapi to avoid circular dependency
+    class TestBuilder;
+    template<typename T> class ParameterizedTestBuilder;
 
     /**
      * @brief Requirement builder for traceability and compliance
@@ -114,25 +117,11 @@ export namespace speclab {
         }
         
         /**
-         * @brief Create a test for this requirement
+         * @brief Associate a test ID with this requirement for traceability
          */
-        TestBuilder Test(std::string_view testId) {
-            TestBuilder builder(testId);
-            
-            // Configure the test with requirement information
-            // Note: This would need to be implemented as TestBuilder extends with medical features
+        RequirementBuilder& AssociateTest(std::string_view testId) {
             tests_.push_back(std::string(testId));
-            
-            return builder;
-        }
-        
-        /**
-         * @brief Create a parameterized test for this requirement
-         */
-        template<typename ParameterType>
-        ParameterizedTestBuilder<ParameterType> Test(std::string_view testId) {
-            tests_.push_back(std::string(testId));
-            return ParameterizedTestBuilder<ParameterType>(testId);
+            return *this;
         }
         
         /**

@@ -12,8 +12,6 @@ export namespace speclab {
 
     // Forward declarations
     class TestBuilder;
-    class RequirementBuilder;
-    class FeatureBuilder;
     template<typename T> class ParameterizedTestBuilder;
 
     /**
