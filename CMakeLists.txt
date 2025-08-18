@@ -2,7 +2,18 @@ cmake_minimum_required(VERSION 4.0.0)
 
 # CRITICAL: Must be the first thing after cmake_minimum_required for toolchain detection
 # Official UUID for CMake 4.0.3 import std support
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
+# NOTE: enabling CMAKE_EXPERIMENTAL_CXX_IMPORT_STD unconditionally can cause CMake to synthesize
+# a __CMAKE::CXX23 target that references non-existent 'std.cc' sources on some GCC/libstdc++ setups.
+# Guard it: enable explicitly for MSVC where import std handling is stable; for GNU we use the
+# manual `build_std_module` custom target defined later in this file.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "Skipping global CMAKE_EXPERIMENTAL_CXX_IMPORT_STD for GNU - using manual build_std_module target")
+else()
+    # Leave unset for other compilers
+    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "")
+endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
