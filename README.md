@@ -5,6 +5,19 @@
 [![License](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE)
 [![Medical Device](https://img.shields.io/badge/Medical%20Device-IEC%2062304-red.svg)](https://www.iso.org/standard/64686.html)
 
+⚠️ EXPERIMENTAL PROJECT WARNING
+
+This project is an experimental early evaluation of C++23 modules feasibility for cross-platform development with rich dependencies (Vulkan graphics, medical device compliance frameworks). It represents an attempt to leverage C++23 and emerging C++26 safety evolutions for medical device software development.
+
+Current Status:
+
+C++23 modules support requires cutting-edge toolchains (GCC 15+, MSVC 17.14+, Clang 20+)
+CMake 4.x+ experimental support for import std;
+Cross-platform compatibility still evolving
+Medical device compliance framework is conceptual/educational
+Exploring modern C++ safety features for medical device reliability
+Not recommended for production use. This project serves as a technical proof-of-concept for modern C++ module systems and safety evolutions in complex, regulated software environments.
+
 A modern C++23 modules-based testing framework specifically designed for medical devices. SpecLab provides BDD (Behavior-Driven Development) testing capabilities with built-in compliance for IEC 62304, ISO 13485, and ISO 14971 standards through structured test execution, audit trails, and medical device-specific features.
 
 ## Why SpecLab?
