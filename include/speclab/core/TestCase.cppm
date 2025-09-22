@@ -117,6 +117,7 @@ export namespace speclab::core {
         
         // Getters
         const std::string& getId() const noexcept { return testId_; }
+        const std::string& getTestId() const noexcept { return testId_; } // Alias for compatibility
         const std::string& getName() const noexcept { return testName_; }
         const std::string& getDescription() const noexcept { return description_; }
         bool isEnabled() const noexcept { return enabled_; }

@@ -143,8 +143,8 @@ export namespace speclab::core {
          * @return Passed count
          */
         std::size_t getPassedCount() const noexcept {
-            return std::count_if(results_.begin(), results_.end(),
-                               [](const TestResult& r) { return r.passed(); });
+            return static_cast<std::size_t>(std::count_if(results_.begin(), results_.end(),
+                               [](const TestResult& r) { return r.passed(); }));
         }
         
         /**
@@ -152,8 +152,8 @@ export namespace speclab::core {
          * @return Failed count
          */
         std::size_t getFailedCount() const noexcept {
-            return std::count_if(results_.begin(), results_.end(),
-                               [](const TestResult& r) { return r.failed(); });
+            return static_cast<std::size_t>(std::count_if(results_.begin(), results_.end(),
+                               [](const TestResult& r) { return r.failed(); }));
         }
         
         /**
@@ -161,8 +161,8 @@ export namespace speclab::core {
          * @return Critical failure count
          */
         std::size_t getCriticalCount() const noexcept {
-            return std::count_if(results_.begin(), results_.end(),
-                               [](const TestResult& r) { return r.critical(); });
+            return static_cast<std::size_t>(std::count_if(results_.begin(), results_.end(),
+                               [](const TestResult& r) { return r.critical(); }));
         }
         
         /**
@@ -171,7 +171,7 @@ export namespace speclab::core {
          */
         double getSuccessRate() const noexcept {
             if (results_.empty()) return 100.0;
-            return (static_cast<double>(getPassedCount()) / results_.size()) * 100.0;
+            return (static_cast<double>(getPassedCount()) / static_cast<double>(results_.size())) * 100.0;
         }
         
         /**

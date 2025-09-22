@@ -20,23 +20,17 @@ export import speclab.medical.medicaltestcase;
 export import speclab.medical.functionalapi;
 export import speclab.medical.compliancevalidator;
 
+// Export reporters and runners
+export import speclab.reporters.reporter;
+export import speclab.reporters.consolereporter;
+export import speclab.runners.testrunner;
+
 import std;
 
 /**
  * @brief Main SpecLab namespace containing all framework functionality
  */
 export namespace SpecLab {
-    
-    // Re-export core functional API for convenience
-    using speclab::Test;
-    using speclab::ParameterizedTest;
-    using speclab::Requirement;
-    using speclab::Feature;
-    using speclab::IEC62304Process;
-    
-    // Re-export medical device API
-    using speclab::medical::MedicalRequirement;
-    using speclab::medical::MedicalTest;
     
     // Re-export core types
     using speclab::core::TestResult;
@@ -54,8 +48,21 @@ export namespace SpecLab {
     using speclab::medical::SafetyClass;
     using speclab::medical::MedicalTestContext;
     
-    // Re-export assertion utilities
-    using Assert = speclab::core::Assertions;
+    // Re-export functional API
+    using speclab::Test;
+    using speclab::ParameterizedTest;
+    using speclab::Requirement;
+    using speclab::Feature;
+    using speclab::IEC62304Process;
+    
+    // Re-export medical functional API
+    using speclab::medical::MedicalTest;
+    using speclab::medical::MedicalRequirement;
+    
+    // Re-export runners and reporters
+    using speclab::runners::TestRunner;
+    using speclab::reporters::Reporter;
+    using speclab::reporters::ConsoleReporter;
     
     /**
      * @brief Framework version information
@@ -106,6 +113,7 @@ export namespace SpecLab {
      */
     void initialize(bool enableMedicalCompliance = true, 
                    std::string_view logLevel = "INFO") {
+        (void)logLevel; // Suppress unused parameter warning
         // Framework initialization would go here
         // For now, this is a placeholder
         
@@ -115,59 +123,6 @@ export namespace SpecLab {
             // Configure regulatory reporting
         }
     }
-    
-    /**
-     * @brief Quick test execution for single tests
-     * @param testName Test identifier
-     * @param testFunction Test function to execute
-     * @return Test result
-     */
-    speclab::core::TestResult quickTest(std::string_view testName, 
-                                       std::function<void()> testFunction) {
-        return Test(testName)
-            .Given("Test setup", [](){})
-            .When("Test executes", testFunction)
-            .Then("Test completes", [](){})
-            .Execute();
-    }
-    
-    /**
-     * @brief Run a simple assertion test
-     * @param testName Test identifier
-     * @param condition Condition to assert
-     * @param message Assertion message
-     * @return Test result
-     */
-    speclab::core::TestResult assertTest(std::string_view testName,
-                                        bool condition,
-                                        std::string_view message = "Assertion") {
-        return Test(testName)
-            .Given("Condition to test", [](){})
-            .When("Assertion is evaluated", [](){})
-            .Then("Condition must be true", [condition, message]() {
-                Assert::IsTrue(condition, std::string(message));
-            })
-            .Execute();
-    }
-    
-    /**
-     * @brief Medical device quick test with compliance
-     * @param testName Test identifier
-     * @param deviceId Device identifier
-     * @param testFunction Test function
-     * @param riskLevel Risk level (default: Low)
-     * @return Medical test result
-     */
-    speclab::core::TestResult medicalQuickTest(std::string_view testName,
-                                              std::string_view deviceId,
-                                              std::function<void()> testFunction,
-                                              speclab::medical::RiskLevel riskLevel = speclab::medical::RiskLevel::Low) {
-        return MedicalTest(testName, deviceId, "QuickTest", riskLevel)
-            .Given("Medical device setup", [](){})
-            .When("Test executes", testFunction)
-            .Then("Test completes", [](){})
-            .ExecuteMedical();
-    }
 
 } // namespace SpecLab
 
@@ -175,13 +130,6 @@ export namespace SpecLab {
  * @brief Global convenience aliases for common usage patterns
  */
 export namespace SpecLabShort {
-    // Short aliases for quick testing
-    using T = SpecLab::Test;
-    using R = SpecLab::Requirement;
-    using F = SpecLab::Feature;
-    using MT = SpecLab::MedicalTest;
-    using MR = SpecLab::MedicalRequirement;
-    
-    // Quick assertion alias
-    constexpr auto Assert = SpecLab::Assert;
+    // Framework provides convenient access to core components
+    // Import the main SpecLab module to access all functionality
 }
