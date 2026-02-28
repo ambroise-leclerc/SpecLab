@@ -173,7 +173,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_COMPILER=g++-15 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_ISO14971_VALIDATION=ON
+          -DSPECLAB_ISO14971_VALIDATION=ON \
+          -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
         cmake --build build --parallel
 
     - name: Execute Risk Analysis Tests
