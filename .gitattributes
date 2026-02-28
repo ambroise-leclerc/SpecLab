@@ -1,0 +1,24 @@
+* text=auto eol=lf
+*.cppm text eol=lf
+*.cpp text eol=lf
+*.cmake text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.in text eol=lf
+*.json text eol=lf
+
+# Windows-specific
+*.sln text eol=crlf
+*.vcxproj text eol=crlf
+
+# Binary files
+*.exe binary
+*.dll binary
+*.so binary
+*.a binary
+*.lib binary
+*.png binary
+*.jpg binary
+*.pdf binary
