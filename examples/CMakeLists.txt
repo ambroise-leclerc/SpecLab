@@ -26,6 +26,17 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(basic_example PRIVATE 
         -fmodules
     )
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(basic_example PRIVATE 
+        -fmodules
+        -std=c++2c
+        -fbuiltin-module-map
+        -fimplicit-module-maps
+        -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm
+    )
+    target_link_options(basic_example PRIVATE 
+        -stdlib=libc++
+    )
 endif()
 
 # Link to standard library module if available
@@ -70,6 +81,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(pulse_oximeter_example PRIVATE 
         -fmodules
+    )
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(pulse_oximeter_example PRIVATE 
+        -fmodules
+        -std=c++2c
+        -fbuiltin-module-map
+        -fimplicit-module-maps
+        -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm
+    )
+    target_link_options(pulse_oximeter_example PRIVATE 
+        -stdlib=libc++
     )
 endif()
 

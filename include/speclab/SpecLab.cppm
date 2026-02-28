@@ -68,7 +68,6 @@ export namespace SpecLab {
      * @brief Framework version information
      */
     constexpr std::string_view VERSION = "1.0.0";
-    constexpr std::string_view BUILD_DATE = __DATE__;
     constexpr std::string_view CPP_VERSION = "C++23";
     
     /**
@@ -87,7 +86,6 @@ export namespace SpecLab {
      */
     struct FrameworkInfo {
         std::string_view version = VERSION;
-        std::string_view buildDate = BUILD_DATE;
         std::string_view cppVersion = CPP_VERSION;
         bool medicalComplianceEnabled = true;
         std::vector<std::string_view> supportedStandards = {

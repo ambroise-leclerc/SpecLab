@@ -10,9 +10,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message(STATUS "Skipping global CMAKE_EXPERIMENTAL_CXX_IMPORT_STD for GNU - using manual build_std_module target")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(STATUS "Skipping global CMAKE_EXPERIMENTAL_CXX_IMPORT_STD for Clang - using native modules support")
 else()
-    # Leave unset for other compilers
-    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "")
+    message(STATUS "Skipping global CMAKE_EXPERIMENTAL_CXX_IMPORT_STD for ${CMAKE_CXX_COMPILER_ID} - using compiler-specific modules support")
 endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,6 +32,10 @@ if(TARGET __CMAKE::CXX23)
 else()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.40")
         message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(STATUS "__CMAKE::CXX23 target NOT available - using Clang native modules support instead")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(STATUS "__CMAKE::CXX23 target NOT available - using manual build_std_module target instead")
     else()
         message(WARNING "__CMAKE::CXX23 target NOT available - import std; will not work")
     endif()
@@ -65,9 +70,11 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/experimental:module>)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Clang 20+ modules configuration
+    # Clang 20+ modules configuration with stdlib modules
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fmodules>)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++2c>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fbuiltin-module-map>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fimplicit-module-maps>)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -122,7 +129,7 @@ target_include_directories(speclab PUBLIC
 
 target_compile_features(speclab PUBLIC cxx_std_23)
 
-# Build the std module first for GCC
+# Build the std module first for GCC and Clang
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Create a custom target to build the std module
     add_custom_target(build_std_module
@@ -140,6 +147,18 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     )
     # Make speclab depend on the std module
     add_dependencies(speclab build_std_module)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Create a std module for Clang using libcxx modules
+    add_custom_target(build_std_module
+        COMMAND ${CMAKE_CXX_COMPILER} -std=c++2c -stdlib=libc++ --precompile -x c++-module /usr/lib/llvm-20/share/libc++/v1/std.cppm -o std.pcm
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Building std module for Clang"
+        VERBATIM
+    )
+    # Make speclab depend on the std module
+    add_dependencies(speclab build_std_module)
+    # Add the module to the compile flags
+    target_compile_options(speclab PRIVATE -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm)
 endif()
 
 # Link to the std module if available (only in build context, not export)

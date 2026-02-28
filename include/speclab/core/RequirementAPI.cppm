@@ -10,7 +10,6 @@ import speclab.core.testresult;
 export namespace speclab {
 
     // Forward declarations from functionalapi to avoid circular dependency
-    class TestBuilder;
     template<typename T> class ParameterizedTestBuilder;
 
     /**
@@ -182,6 +181,7 @@ export namespace speclab {
         const std::vector<std::string>& getTests() const noexcept { return tests_; }
         bool requiresAudit() const noexcept { return requiresAudit_; }
         bool requiresValidation() const noexcept { return requiresValidation_; }
+        bool isEnabled() const noexcept { return enabled_; }
         
     private:
         std::string requirementId_;
@@ -394,6 +394,9 @@ export namespace speclab {
             
             return allResults;
         }
+        
+        // Getters for introspection
+        bool isEnabled() const noexcept { return enabled_; }
         
     private:
         std::string toString(LifecycleProcess process) const {

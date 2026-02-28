@@ -54,9 +54,10 @@ struct SpO2Reading {
     bool isValid;               // Reading validity flag
     
     SpO2Reading() : spo2Percent(0.0), pulseRate(0.0), signalStrength(0.0)
-                  , deviceState(DeviceState::NoSignal), isValid(false)
+                  , deviceState(DeviceState::NoSignal)
                   , timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
-                      std::chrono::steady_clock::now().time_since_epoch())) {}
+                      std::chrono::steady_clock::now().time_since_epoch()))
+                  , isValid(false) {}
 };
 
 /**
@@ -252,7 +253,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-PWR-001"
+        .source = "SRS-PWR-001",
+        .metadata = {}
     });
     
     RegisterRequirement({
@@ -262,7 +264,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SPO2-001"
+        .source = "SRS-SPO2-001",
+        .metadata = {}
     });
     
     RegisterRequirement({
@@ -272,7 +275,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_C",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SPO2-002"
+        .source = "SRS-SPO2-002",
+        .metadata = {}
     });
     
     RegisterRequirement({
@@ -282,7 +286,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SIG-001"
+        .source = "SRS-SIG-001",
+        .metadata = {}
     });
     
     RegisterRequirement({
@@ -292,7 +297,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = false,
         .requiresValidation = true,
-        .source = "SRS-SIG-002"
+        .source = "SRS-SIG-002",
+        .metadata = {}
     });
     
     RegisterRequirement({
@@ -302,7 +308,8 @@ void registerRequirements() {
         .safetyClass = "CLASS_C",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SAF-001"
+        .source = "SRS-SAF-001",
+        .metadata = {}
     });
 }
 
@@ -547,7 +554,7 @@ void runBDDTests() {
             PulseOximeter device;
             device.powerOn();
             ProbeSignal disconnectedSignal(0.0, 0.0, 0.0, false); // Disconnected
-            auto reading = device.processSignal(disconnectedSignal);
+            [[maybe_unused]] auto reading = device.processSignal(disconnectedSignal);
             
             if (device.getCurrentState() != DeviceState::NoSignal) {
                 throw AssertionFailure("Probe disconnection not detected", std::source_location::current());
@@ -571,7 +578,7 @@ void runBDDTests() {
             PulseOximeter device;
             device.powerOn();
             ProbeSignal poorSignal(0.5, 0.6, 0.2, true); // Poor quality
-            auto reading = device.processSignal(poorSignal);
+            [[maybe_unused]] auto reading = device.processSignal(poorSignal);
             
             if (device.getCurrentState() != DeviceState::Searching) {
                 throw AssertionFailure("Poor signal quality not handled correctly", std::source_location::current());

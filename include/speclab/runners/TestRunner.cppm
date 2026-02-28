@@ -25,7 +25,7 @@ export namespace speclab::runners {
          * @brief Configuration for test execution
          */
         struct Config {
-            std::size_t maxThreads = std::thread::hardware_concurrency();
+            std::size_t maxThreads = 0; // Will be set to hardware_concurrency in constructor if 0
             bool parallelExecution = true;
             bool stopOnFirstFailure = false;
             bool stopOnCriticalFailure = true;
@@ -35,11 +35,26 @@ export namespace speclab::runners {
         };
 
         /**
-         * @brief Construct test runner with configuration
+         * @brief Construct test runner with default configuration
+         */
+        TestRunner() : config_{} {
+            // Set default thread count
+            if (config_.maxThreads == 0) {
+                config_.maxThreads = std::thread::hardware_concurrency();
+            }
+            setReporter(std::make_unique<reporters::ConsoleReporter>());
+        }
+
+        /**
+         * @brief Construct test runner with custom configuration
          * @param config Execution configuration
          */
-        explicit TestRunner(Config config = {}) 
+        explicit TestRunner(Config config) 
             : config_(std::move(config)) {
+            // Set default thread count if not specified
+            if (config_.maxThreads == 0) {
+                config_.maxThreads = std::thread::hardware_concurrency();
+            }
             setReporter(std::make_unique<reporters::ConsoleReporter>());
         }
 
