@@ -317,50 +317,60 @@ export namespace speclab::runners {
         core::TestResult executeTest(core::TestCase& test) {
             auto startTime = std::chrono::steady_clock::now();
             
-            // Execute test with timeout
-            std::promise<core::TestResult> resultPromise;
-            auto resultFuture = resultPromise.get_future();
+            std::mutex mtx;
+            std::condition_variable cv;
+            std::optional<core::TestResult> sharedResult;
+            bool done = false;
             
             std::jthread testThread([&](std::stop_token stopToken) {
-                (void)stopToken; // Suppress unused parameter warning
+                (void)stopToken;
                 try {
                     auto result = test.execute();
                     result.testId = test.getTestId();
-                    resultPromise.set_value(result);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(result);
+                    done = true;
                 } catch (const std::exception& e) {
                     core::TestResult errorResult(core::TestStatus::Error, e.what());
                     errorResult.testId = test.getTestId();
-                    resultPromise.set_value(errorResult);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(errorResult);
+                    done = true;
                 } catch (...) {
                     core::TestResult errorResult(core::TestStatus::Error, "Unknown exception");
                     errorResult.testId = test.getTestId();
-                    resultPromise.set_value(errorResult);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(errorResult);
+                    done = true;
                 }
+                cv.notify_one();
             });
             
             // Wait for completion or timeout
-            auto status = resultFuture.wait_for(config_.testTimeout);
-            
-            if (status == std::future_status::timeout) {
-                testThread.request_stop();
-                if (testThread.joinable()) {
-                    testThread.join();
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+                if (!cv.wait_for(lock, config_.testTimeout, [&done]{ return done; })) {
+                    testThread.request_stop();
+                    lock.unlock();
+                    if (testThread.joinable()) {
+                        testThread.join();
+                    }
+                    
+                    std::lock_guard<std::mutex> statsLock(statsMutex_);
+                    stats_.timeouts++;
+                    
+                    core::TestResult timeoutResult(core::TestStatus::Error, "Test timeout");
+                    timeoutResult.testId = test.getTestId();
+                    timeoutResult.duration = config_.testTimeout;
+                    return timeoutResult;
                 }
-                
-                std::lock_guard<std::mutex> lock(statsMutex_);
-                stats_.timeouts++;
-                
-                core::TestResult timeoutResult(core::TestStatus::Error, "Test timeout");
-                timeoutResult.testId = test.getTestId();
-                timeoutResult.duration = config_.testTimeout;
-                return timeoutResult;
             }
             
             if (testThread.joinable()) {
                 testThread.join();
             }
             
-            auto result = resultFuture.get();
+            auto result = std::move(*sharedResult);
             auto endTime = std::chrono::steady_clock::now();
             result.duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime);
             
