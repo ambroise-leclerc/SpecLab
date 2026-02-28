@@ -64,7 +64,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
 # Compiler-specific modules configuration
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fmodules>)
+    # CMake's module scanning already adds -fmodules-ts; no extra flag needed
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC-specific modules configuration for C++23 and import std
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/experimental:module>)
@@ -130,8 +130,10 @@ target_include_directories(speclab PUBLIC
 target_compile_features(speclab PUBLIC cxx_std_23)
 
 # Build the std module first for GCC and Clang
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # Create a custom target to build the std module
+# When CMAKE_EXPERIMENTAL_CXX_IMPORT_STD is set CMake provides __CMAKE::CXX23;
+# manual header-unit precompilation would conflict with the managed std module.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT TARGET __CMAKE::CXX23)
+    # Fallback: precompile individual system headers when import std is not managed by CMake
     add_custom_target(build_std_module
         COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header iostream
         COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header vector
@@ -145,7 +147,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         COMMENT "Building std module for GCC"
     )
-    # Make speclab depend on the std module
     add_dependencies(speclab build_std_module)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # Create a std module for Clang using libcxx modules
