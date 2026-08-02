@@ -323,10 +323,10 @@ export namespace speclab::core {
             std::vector<std::jthread> workers;
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
-                    workers.emplace_back([test, &results, &resultsMutex, this](std::stop_token) {
+                    workers.emplace_back([testPtr = test.get(), &results, &resultsMutex, this](std::stop_token) {
                         TestResult result;
                         try {
-                            result = test->execute();
+                            result = testPtr->execute();
                             result.suiteName = name_;
                             speclab::core::AugmentResultWithRequirements(result);
                         } catch (const std::exception& e) {
