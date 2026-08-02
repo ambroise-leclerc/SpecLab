@@ -150,8 +150,7 @@ void requirementsExample() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-Math",
-        .metadata = {}
+        .source = "SRS-Math"
     });
     
     // Link test to requirement (this would normally be done during test execution)

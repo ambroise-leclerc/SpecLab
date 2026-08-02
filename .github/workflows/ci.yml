@@ -22,7 +22,13 @@ permissions:
   actions: read
 
 env:
-  CMAKE_VERSION: '4.0.3'
+  # Pinned, not 'latest'. CMakeLists.txt hardcodes CMAKE_EXPERIMENTAL_CXX_IMPORT_STD to a
+  # specific UUID, and CMake changes that UUID as the `import std` experimental feature evolves
+  # from release to release. A CMake that does not recognise the UUID rejects it ("set to
+  # incorrect value"), silently stops synthesising the std module, and the build collapses into
+  # hundreds of "could not find module 'std'" errors. 4.1.1 is the version MduX pins for the
+  # same reason - keep the two in step when either moves.
+  CMAKE_VERSION: '4.1.1'
   BUILD_TYPE: Release
 
 jobs:
@@ -30,24 +36,18 @@ jobs:
   # Windows MSVC Builds (Primary Medical Device Platform)
   # ============================================================================
   windows-msvc:
-    name: Windows MSVC ${{ matrix.msvc-version }} (${{ matrix.arch }})
+    name: Windows MSVC (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # MSVC 2022 (17.10+) - Required for C++23 modules
+          # MSVC 17.14+ (VS 2022 17.10+) - required for C++23 modules
           - os: windows-2022
-            msvc-version: "17.10"
             arch: x64
-            cmake-generator: "Visual Studio 17 2022"
-            cmake-arch: x64
           - os: windows-2022
-            msvc-version: "17.10"
             arch: x86
-            cmake-generator: "Visual Studio 17 2022"
-            cmake-arch: Win32
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -55,19 +55,22 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    # SHA-pinned rather than @v1: this action rewrites the whole compiler environment for every
+    # later step, so an unreviewed upstream change silently changes which toolchain CI builds
+    # with. Same pin MduX uses.
     - name: Setup MSVC environment
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: ${{ matrix.arch }}
         vsversion: 2022
 
-    - name: Install CMake 4.0+
+    - name: Install CMake and Ninja
       uses: lukka/get-cmake@latest
       with:
         cmakeVersion: ${{ env.CMAKE_VERSION }}
 
     - name: Cache CMake build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           build
@@ -76,27 +79,34 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cmake-${{ matrix.arch }}-
 
+    # Ninja, not "Visual Studio 17 2022". The VS generator does not drive CMake's `import std`
+    # support - it is the documented cause of the "could not find module 'std'" failures in this
+    # project's own troubleshooting notes, and MduX builds MSVC through Ninja for the same
+    # reason. The compiler still comes from msvc-dev-cmd above; only the generator changes.
+    #
+    # Ninja is single-config, so CMAKE_BUILD_TYPE (not --config) selects the configuration and
+    # binaries land in build/examples/ rather than build/examples/Release/.
     - name: Configure CMake
       run: |
         cmake -B build `
-          -G "${{ matrix.cmake-generator }}" `
-          -A ${{ matrix.cmake-arch }} `
+          -G Ninja `
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DCMAKE_C_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER=cl `
           -DSPECLAB_BUILD_EXAMPLES=ON `
-          -DSPECLAB_BUILD_TESTS=OFF `
-          -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
+          -DSPECLAB_BUILD_TESTS=OFF
 
     - name: Build SpecLab
-      run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+      run: cmake --build build --parallel
 
     - name: Run basic example
       run: |
-        cd build/examples/${{ env.BUILD_TYPE }}
+        cd build/examples
         ./basic_example.exe
 
     - name: Run pulse oximeter example
       run: |
-        cd build/examples/${{ env.BUILD_TYPE }}
+        cd build/examples
         ./pulse_oximeter_example.exe
 
     - name: Generate medical device compliance report
@@ -104,7 +114,10 @@ jobs:
         echo "# Medical Device Compliance Report" > compliance-report.md
         echo "## Build Information" >> compliance-report.md
         echo "- Platform: Windows ${{ matrix.arch }}" >> compliance-report.md
-        echo "- Compiler: MSVC ${{ matrix.msvc-version }}" >> compliance-report.md
+        # Record the toolset actually used, not a hardcoded matrix string - a compliance record
+        # naming a compiler version the build never ran is worse than no record at all.
+        echo "- Compiler: MSVC (VS toolset $env:VSCMD_VER)" >> compliance-report.md
+        echo "- Generator: Ninja" >> compliance-report.md
         echo "- CMake: ${{ env.CMAKE_VERSION }}" >> compliance-report.md
         echo "- Build Type: ${{ env.BUILD_TYPE }}" >> compliance-report.md
         echo "- Standards: IEC 62304, ISO 13485, ISO 14971" >> compliance-report.md
@@ -115,26 +128,38 @@ jobs:
         name: windows-msvc-${{ matrix.arch }}-compliance
         path: |
           compliance-report.md
-          build/examples/${{ env.BUILD_TYPE }}/*.exe
+          build/examples/*.exe
 
   # ============================================================================
   # Linux GCC Builds (Development Platform)
   # ============================================================================
   linux-gcc:
     name: Linux GCC ${{ matrix.gcc-version }}
-    runs-on: ubuntu-${{ matrix.ubuntu-version }}
-    container: 
-      image: gcc:15
+    runs-on: ubuntu-latest
+    container:
+      image: gcc:${{ matrix.gcc-version }}
       options: --user root
     strategy:
       fail-fast: false
       matrix:
         include:
-          # GCC 15+ - Required for C++23 modules support (using official GCC container)
-          - ubuntu-version: "24.04"
-            gcc-version: 15
-            install-gcc: "gcc-15 g++-15"
-    
+          # GCC 15 - the minimum this project supports (CMakeLists.txt enforces it).
+          #
+          # Known defective for `import std`: GCC 15 does not round-trip parts of libstdc++'s
+          # std module through a second-level BMI, so compiling speclab.runners.testrunner (which
+          # imports speclab.core.testsuite, which imports std) fails with "failed to read
+          # compiled module cluster N: Bad file data". continue-on-error keeps the leg visible
+          # and reporting without blocking merges on an upstream compiler bug we cannot fix.
+          # Drop continue-on-error once a GCC 15.x point release fixes it - do not drop the leg.
+          - gcc-version: 15
+            allow-failure: true
+          # GCC 16 - builds cleanly, including the modules path GCC 15 chokes on. This is the
+          # leg that must stay green. Keeping both means a regression affecting only one GCC
+          # version is still caught, which is the same reason MduX runs gcc:15 and gcc:16.
+          - gcc-version: 16
+            allow-failure: false
+    continue-on-error: ${{ matrix.allow-failure }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -159,15 +184,16 @@ jobs:
 
     - name: Setup GCC
       run: |
-        # GCC 15 is already available in the container
+        # The gcc:N container already provides the compiler as plain gcc/g++.
         gcc --version
         g++ --version
-        # Create versioned symlinks for consistency
-        ln -sf /usr/local/bin/gcc /usr/local/bin/gcc-15
-        ln -sf /usr/local/bin/g++ /usr/local/bin/g++-15
+        # Versioned symlinks so the configure step below can name the compiler explicitly
+        # and fail loudly if the container ever ships a different major version.
+        ln -sf /usr/local/bin/gcc /usr/local/bin/gcc-${{ matrix.gcc-version }}
+        ln -sf /usr/local/bin/g++ /usr/local/bin/g++-${{ matrix.gcc-version }}
 
     - name: Cache CMake build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           build
@@ -185,8 +211,7 @@ jobs:
           -DCMAKE_CXX_COMPILER=g++-${{ matrix.gcc-version }} \
           -DCMAKE_C_COMPILER=gcc-${{ matrix.gcc-version }} \
           -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_BUILD_TESTS=OFF \
-          -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
+          -DSPECLAB_BUILD_TESTS=OFF
 
     - name: Build SpecLab
       run: cmake --build build --parallel
@@ -211,85 +236,89 @@ jobs:
           build/examples/pulse_oximeter_example
 
   # ============================================================================
-  # Linux Clang Builds (Alternative Compiler) - DISABLED  
-  # NOTE: Clang 20 container has cyclic dependency issues with import std
+  # Linux Clang Builds (Alternative Compiler) - DISABLED
+  #
+  # This job was previously "disabled" only by having the word in its name
+  # (linux-clang-disabled): GitHub Actions does not read job names, so it ran on every push
+  # and failed on every push. It is commented out below, which is what actually disables it.
+  #
+  # Why it is off: Clang 20 needs a std module and this project has no verified way to give it
+  # one. The manual route (clang --precompile .../libc++/v1/std.cppm, -fmodule-file=std=...)
+  # collides with the __CMAKE::CXX23 module CMake synthesises - Clang rejects two definitions
+  # of module std - and the std.cppm path it needs is not present in silkeh/clang:20 at all.
+  # The root CMakeLists.txt therefore has no Clang-specific module path; see the note there.
+  #
+  # To re-enable: get a Clang build working locally first, decide there whether the std module
+  # comes from __CMAKE::CXX23 or from a precompiled std.pcm (not both), then uncomment this and
+  # match whatever the CMakeLists.txt does. Do not land Clang CMake logic without this job green.
   # ============================================================================
-  linux-clang-disabled:
-    name: Linux Clang ${{ matrix.clang-version }}
-    runs-on: ubuntu-${{ matrix.ubuntu-version }}
-    container:
-      image: silkeh/clang:20
-      options: --user root
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Clang 20+ - Required for C++23 modules support (using Clang container)
-          - ubuntu-version: "24.04"
-            clang-version: 20
-            install-clang: "clang-20 libc++-20-dev libc++abi-20-dev"
-    
-    steps:
-    - name: Install Git and essential tools
-      run: |
-        # Install Git first to enable proper checkout
-        apt-get update
-        apt-get install -y git
-
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Install dependencies
-      run: |
-        # Install remaining dependencies
-        apt-get install -y \
-          ninja-build \
-          wget \
-          curl \
-          pkg-config \
-          libc++-dev \
-          libc++abi-dev
-
-    - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
-      with:
-        cmakeVersion: ${{ env.CMAKE_VERSION }}
-
-    - name: Setup Clang
-      run: |
-        # Clang 20 is already available in the container
-        clang --version
-        clang++ --version
-        # Create versioned symlinks for consistency
-        ln -sf /usr/bin/clang /usr/bin/clang-20
-        ln -sf /usr/bin/clang++ /usr/bin/clang++-20
-
-    - name: Configure CMake
-      run: |
-        cmake -B build \
-          -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-          -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang-version }} \
-          -DCMAKE_C_COMPILER=clang-${{ matrix.clang-version }} \
-          -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fmodules" \
-          -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_BUILD_TESTS=OFF \
-          -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
-
-    - name: Build SpecLab
-      run: cmake --build build --parallel
-
-    - name: Run basic example
-      run: |
-        cd build/examples
-        ./basic_example
-
-    - name: Run pulse oximeter example
-      run: |
-        cd build/examples
-        ./pulse_oximeter_example
+  # linux-clang:
+  #   name: Linux Clang ${{ matrix.clang-version }}
+  #   runs-on: ubuntu-latest
+  #   container:
+  #     image: silkeh/clang:20
+  #     options: --user root
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - clang-version: 20
+  #
+  #   steps:
+  #   - name: Install Git and essential tools
+  #     run: |
+  #       apt-get update
+  #       apt-get install -y git
+  #
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #     with:
+  #       fetch-depth: 0
+  #
+  #   - name: Install dependencies
+  #     run: |
+  #       apt-get install -y \
+  #         ninja-build \
+  #         wget \
+  #         curl \
+  #         pkg-config \
+  #         libc++-dev \
+  #         libc++abi-dev
+  #
+  #   - name: Install CMake 4.0+
+  #     uses: lukka/get-cmake@latest
+  #     with:
+  #       cmakeVersion: ${{ env.CMAKE_VERSION }}
+  #
+  #   - name: Setup Clang
+  #     run: |
+  #       clang --version
+  #       clang++ --version
+  #       ln -sf /usr/bin/clang /usr/bin/clang-20
+  #       ln -sf /usr/bin/clang++ /usr/bin/clang++-20
+  #
+  #   - name: Configure CMake
+  #     run: |
+  #       cmake -B build \
+  #         -G Ninja \
+  #         -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+  #         -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang-version }} \
+  #         -DCMAKE_C_COMPILER=clang-${{ matrix.clang-version }} \
+  #         -DSPECLAB_BUILD_EXAMPLES=ON \
+  #         -DSPECLAB_BUILD_TESTS=OFF
+  #
+  #   - name: Build SpecLab
+  #     run: cmake --build build --parallel
+  #
+  #   - name: Run basic example
+  #     run: |
+  #       cd build/examples
+  #       ./basic_example
+  #
+  #   - name: Run pulse oximeter example
+  #     run: |
+  #       cd build/examples
+  #       ./pulse_oximeter_example
 
   # ============================================================================
   # Medical Device Compliance Validation
@@ -309,10 +338,13 @@ jobs:
         name: windows-msvc-x64-compliance
         path: artifacts/windows
 
+    # gcc16, not gcc15: the GCC 15 leg is continue-on-error while its `import std` defect is
+    # unfixed upstream, so it may legitimately produce no artifact. Depending on it here would
+    # make compliance validation fail for a reason that has nothing to do with compliance.
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:
-        name: linux-gcc15-artifacts
+        name: linux-gcc16-artifacts
         path: artifacts/linux
 
     - name: Validate IEC 62304 Compliance
@@ -358,8 +390,21 @@ jobs:
   security-analysis:
     name: Security Analysis
     runs-on: ubuntu-latest
-    
+    # The gcc:16 container, not ubuntu-latest + a PPA. This job used to apt-get install gcc-15
+    # from ppa:ubuntu-toolchain-r/test with an `|| exit 1` fallback that only printed "using
+    # container approach instead" before failing - the PPA does not carry GCC 15 for the runner
+    # image, so the job failed on every run. The official container is where the other Linux
+    # legs already get their compiler; use the same one.
+    container:
+      image: gcc:16
+      options: --user root
+
     steps:
+    - name: Install Git
+      run: |
+        apt-get update
+        apt-get install -y git ninja-build
+
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -368,17 +413,6 @@ jobs:
       with:
         languages: cpp
         queries: security-and-quality
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        # Add GCC 15 repository
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 ninja-build || {
-          echo "GCC 15 not available, using container approach instead"
-          exit 1
-        }
 
     - name: Install CMake 4.0+
       uses: lukka/get-cmake@latest
@@ -390,7 +424,6 @@ jobs:
         cmake -B build \
           -G Ninja \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_CXX_COMPILER=g++-15 \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF
         cmake --build build --parallel
@@ -459,31 +492,36 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Setup MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      with:
+        arch: x64
 
-    - name: Install CMake 4.0+
+    - name: Install CMake and Ninja
       uses: lukka/get-cmake@latest
       with:
         cmakeVersion: ${{ env.CMAKE_VERSION }}
 
+    # Ninja for the same reason as the windows-msvc job: the Visual Studio generator does not
+    # drive CMake's `import std` support. Benchmarks built through a generator the project does
+    # not otherwise use would not be measuring the shipped configuration anyway.
     - name: Build Release
       run: |
-        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DSPECLAB_BUILD_EXAMPLES=ON
-        cmake --build build --config Release --parallel
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DSPECLAB_BUILD_EXAMPLES=ON -DSPECLAB_BUILD_TESTS=OFF
+        cmake --build build --parallel
 
     - name: Run Performance Tests
       run: |
-        cd build/examples/Release
-        echo "=== SpecLab Performance Benchmarks ===" > ../../../performance-results.txt
-        echo "Platform: Windows x64" >> ../../../performance-results.txt
-        echo "Compiler: MSVC 17.10+" >> ../../../performance-results.txt
-        echo "Build: Release" >> ../../../performance-results.txt
-        echo "" >> ../../../performance-results.txt
-        echo "Basic Example:" >> ../../../performance-results.txt
-        ./basic_example.exe >> ../../../performance-results.txt
-        echo "" >> ../../../performance-results.txt
-        echo "Pulse Oximeter Example:" >> ../../../performance-results.txt
-        ./pulse_oximeter_example.exe >> ../../../performance-results.txt
+        cd build/examples
+        echo "=== SpecLab Performance Benchmarks ===" > ../../performance-results.txt
+        echo "Platform: Windows x64" >> ../../performance-results.txt
+        echo "Compiler: MSVC 17.10+" >> ../../performance-results.txt
+        echo "Build: Release" >> ../../performance-results.txt
+        echo "" >> ../../performance-results.txt
+        echo "Basic Example:" >> ../../performance-results.txt
+        ./basic_example.exe >> ../../performance-results.txt
+        echo "" >> ../../performance-results.txt
+        echo "Pulse Oximeter Example:" >> ../../performance-results.txt
+        ./pulse_oximeter_example.exe >> ../../performance-results.txt
 
     - name: Upload Performance Results
       uses: actions/upload-artifact@v4

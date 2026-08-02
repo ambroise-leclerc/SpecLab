@@ -319,6 +319,10 @@ export namespace speclab::core {
          * @param results Result collection to populate
          */
         void executeParallel(TestResultCollection& results) {
+            // TestResultCollection is not internally synchronised - this mutex is what makes
+            // the addResult() calls below safe, and the same pattern is repeated in
+            // executeTestsParallel() and executeAllParallel(). See the thread-safety contract
+            // on TestResultCollection in speclab.core.testresult before changing either side.
             std::mutex resultsMutex;
             std::vector<std::jthread> workers;
             for (const auto& test : testCases_) {

@@ -26,18 +26,10 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(basic_example PRIVATE 
         -fmodules
     )
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(basic_example PRIVATE 
-        -fmodules
-        -std=c++2c
-        -fbuiltin-module-map
-        -fimplicit-module-maps
-        -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm
-    )
-    target_link_options(basic_example PRIVATE 
-        -stdlib=libc++
-    )
 endif()
+# No Clang branch: the example inherits its std module from __CMAKE::CXX23 below, exactly as
+# the speclab target does. See the note in the root CMakeLists.txt for why a hand-rolled
+# -fmodule-file=std=.../std.pcm cannot coexist with it.
 
 # Link to standard library module if available
 if(TARGET __CMAKE::CXX23)
@@ -82,18 +74,8 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(pulse_oximeter_example PRIVATE 
         -fmodules
     )
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(pulse_oximeter_example PRIVATE 
-        -fmodules
-        -std=c++2c
-        -fbuiltin-module-map
-        -fimplicit-module-maps
-        -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm
-    )
-    target_link_options(pulse_oximeter_example PRIVATE 
-        -stdlib=libc++
-    )
 endif()
+# No Clang branch - see basic_example above.
 
 # Link to standard library module if available
 if(TARGET __CMAKE::CXX23)

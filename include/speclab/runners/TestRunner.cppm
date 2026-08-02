@@ -38,10 +38,7 @@ export namespace speclab::runners {
          * @brief Construct test runner with default configuration
          */
         TestRunner() : config_{} {
-            // Set default thread count
-            if (config_.maxThreads == 0) {
-                config_.maxThreads = std::thread::hardware_concurrency();
-            }
+            resolveThreadCount();
             setReporter(std::make_unique<reporters::ConsoleReporter>());
         }
 
@@ -49,12 +46,9 @@ export namespace speclab::runners {
          * @brief Construct test runner with custom configuration
          * @param config Execution configuration
          */
-        explicit TestRunner(Config config) 
+        explicit TestRunner(Config config)
             : config_(std::move(config)) {
-            // Set default thread count if not specified
-            if (config_.maxThreads == 0) {
-                config_.maxThreads = std::thread::hardware_concurrency();
-            }
+            resolveThreadCount();
             setReporter(std::make_unique<reporters::ConsoleReporter>());
         }
 
@@ -187,6 +181,23 @@ export namespace speclab::runners {
         mutable std::mutex statsMutex_;
 
         /**
+         * @brief Resolve Config::maxThreads == 0 into a usable worker count
+         *
+         * @note std::thread::hardware_concurrency() is permitted to return 0 when the value is
+         *       not computable (it does so under some containers and sandboxes). Leaving that 0
+         *       in place would make executeParallel() spawn no workers at all, so every test
+         *       would be silently skipped and the suite would report an empty, passing result
+         *       set - the worst possible failure mode for a medical device test runner. Clamp
+         *       to at least one worker, which degrades to sequential execution.
+         */
+        void resolveThreadCount() {
+            if (config_.maxThreads == 0) {
+                const unsigned int detected = std::thread::hardware_concurrency();
+                config_.maxThreads = (detected > 0) ? static_cast<std::size_t>(detected) : 1u;
+            }
+        }
+
+        /**
          * @brief Execute tests sequentially
          * @param suite Test suite to execute
          * @return Test results
@@ -313,6 +324,30 @@ export namespace speclab::runners {
          * @brief Execute a single test with timeout handling
          * @param test Test case to execute
          * @return Test result
+         *
+         * @note Why jthread + mutex + condition_variable rather than the much shorter
+         *       `std::async` / `std::future` form: do not "simplify" this back without reading
+         *       the two caveats below first.
+         *
+         *       (1) This shape was adopted while chasing a GCC 15 modules failure - importing
+         *       speclab.core.testsuite from this module gives "failed to read compiled module
+         *       cluster N: Bad file data" then "failed to load pendings for
+         *       'std::_Sp_counted_ptr_inplace'", naming std::__future_base::_State_baseV2. Be
+         *       clear about what that does and does not mean: the defect is in GCC 15's own
+         *       serialisation of libstdc++'s `std` module through a second-level BMI, not in
+         *       our use of futures, and GCC 15 still fails identically now that no future,
+         *       promise or async remains anywhere in SpecLab. Removing them did not fix it;
+         *       GCC 16 does, which is why CI builds on both and GCC 15 is continue-on-error.
+         *       So this is not a load-bearing workaround - but going back to std::async would
+         *       reintroduce the one construct known to be mis-serialised by a compiler we
+         *       still support, for no gain. Leave it until GCC 15 is dropped.
+         *
+         *       (2) `config_.testTimeout` bounds the *wait*, not the wall clock. On timeout we
+         *       call request_stop() and then join() - but the worker below casts its stop_token
+         *       to void and TestCase::execute() has no cancellation point, so a test that hangs
+         *       hangs the runner regardless of the configured timeout. Making the timeout real
+         *       requires tests to poll their own stop_token (or detaching the worker and
+         *       accepting a leaked thread). This is a known limitation, not enforcement.
          */
         core::TestResult executeTest(core::TestCase& test) {
             auto startTime = std::chrono::steady_clock::now();

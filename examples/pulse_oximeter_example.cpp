@@ -141,14 +141,11 @@ public:
         reading.signalStrength = signal.signalQuality;
         reading.isValid = true;
         
-        // Determine device state based on SpO2 level
-        if (spo2 < 85.0) {
-            currentState_ = DeviceState::MedicalAttention;
-        } else if (spo2 >= 95.0) {
-            currentState_ = DeviceState::Measuring;
-        } else {
-            currentState_ = DeviceState::Measuring; // Lower normal range
-        }
+        // Determine device state based on SpO2 level.
+        // Only the critical threshold changes state: both the normal range (>= 95%) and the
+        // lower normal range (85-95%) are Measuring, so they are one branch. Writing them as
+        // two identical branches is what -Wduplicated-branches (GCC 16) rejects.
+        currentState_ = (spo2 < 85.0) ? DeviceState::MedicalAttention : DeviceState::Measuring;
         
         reading.deviceState = currentState_;
         return reading;
@@ -253,8 +250,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-PWR-001",
-        .metadata = {}
+        .source = "SRS-PWR-001"
     });
     
     RegisterRequirement({
@@ -264,8 +260,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SPO2-001",
-        .metadata = {}
+        .source = "SRS-SPO2-001"
     });
     
     RegisterRequirement({
@@ -275,8 +270,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_C",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SPO2-002",
-        .metadata = {}
+        .source = "SRS-SPO2-002"
     });
     
     RegisterRequirement({
@@ -286,8 +280,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SIG-001",
-        .metadata = {}
+        .source = "SRS-SIG-001"
     });
     
     RegisterRequirement({
@@ -297,8 +290,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_B",
         .requiresAudit = false,
         .requiresValidation = true,
-        .source = "SRS-SIG-002",
-        .metadata = {}
+        .source = "SRS-SIG-002"
     });
     
     RegisterRequirement({
@@ -308,8 +300,7 @@ void registerRequirements() {
         .safetyClass = "CLASS_C",
         .requiresAudit = true,
         .requiresValidation = true,
-        .source = "SRS-SAF-001",
-        .metadata = {}
+        .source = "SRS-SAF-001"
     });
 }
 

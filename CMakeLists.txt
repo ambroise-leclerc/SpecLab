@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 4.0.0)
 
 # CRITICAL: Must be the first thing after cmake_minimum_required for toolchain detection
 # Official UUID for CMake 4.0.3 import std support
-# Compiler detection happens inside project(), so CMAKE_CXX_COMPILER_ID cannot be
-# used to guard a setting that must be made before project().
+# Set unconditionally, before project(). It cannot be guarded on CMAKE_CXX_COMPILER_ID here:
+# that variable is populated by compiler detection inside project(), so before that call it is
+# empty and any if/elseif on it takes the else branch - which is how this ended up disabling
+# `import std` for every compiler, MSVC included.
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +25,10 @@ else()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.40")
         message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        message(STATUS "__CMAKE::CXX23 target NOT available - using Clang native modules support instead")
+        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available - Clang has no fallback path for `import std`. "
+                            "This usually means CMake rejected CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "
+                            "(\"set to incorrect value\"): the UUID above is tied to a specific CMake release. "
+                            "Use CMake 4.1.1, the version CI pins.")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         message(STATUS "__CMAKE::CXX23 target NOT available - using manual build_std_module target instead")
     else()
@@ -60,11 +65,17 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/experimental:module>)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++latest>)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Clang 20+ modules configuration with stdlib modules
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fmodules>)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++2c>)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fbuiltin-module-map>)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fimplicit-module-maps>)
+    # Deliberately empty. Clang uses the std module CMake synthesises from
+    # CMAKE_EXPERIMENTAL_CXX_IMPORT_STD (__CMAKE::CXX23, linked below) and nothing else.
+    #
+    # This block used to add -fmodules -fbuiltin-module-map -fimplicit-module-maps, which
+    # enable Clang *header* modules (Clang modules / module maps) - a different feature from
+    # the C++20 named modules CMake is driving here. Mixing the two makes Clang build the
+    # standard library twice under two module systems. It also added -std=c++2c, overriding
+    # CMAKE_CXX_STANDARD 23 for this project only while __CMAKE::CXX23 stayed at C++23.
+    #
+    # There is no Clang job in CI (see .github/workflows/ci.yml), so anything added back here
+    # is unverified by construction. Re-enable that job before reintroducing Clang flags.
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -138,19 +149,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT TARGET __CMAKE::CXX23)
         COMMENT "Building std module for GCC"
     )
     add_dependencies(speclab build_std_module)
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Create a std module for Clang using libcxx modules
-    add_custom_target(build_std_module
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++2c -stdlib=libc++ --precompile -x c++-module /usr/lib/llvm-20/share/libc++/v1/std.cppm -o std.pcm
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Building std module for Clang"
-        VERBATIM
-    )
-    # Make speclab depend on the std module
-    add_dependencies(speclab build_std_module)
-    # Add the module to the compile flags
-    target_compile_options(speclab PRIVATE -fmodule-file=std=${CMAKE_BINARY_DIR}/std.pcm)
 endif()
+
+# There is intentionally no Clang branch here. A manually precompiled std.pcm
+# (clang --precompile .../libc++/v1/std.cppm plus -fmodule-file=std=...) is a *second*
+# definition of module std alongside the __CMAKE::CXX23 one linked below, and Clang
+# rejects that outright ("module 'std' is defined in both ..."). The path it needs is also
+# distro-specific - /usr/lib/llvm-20/share/libc++/v1/std.cppm ships in Debian's
+# libc++-20-dev but not in silkeh/clang:20 or most source-built LLVMs - so it would fail
+# opaquely at build time on the very image CI would use. Clang gets its std module from
+# CMAKE_EXPERIMENTAL_CXX_IMPORT_STD like every other compiler here.
 
 # Link to the std module if available (only in build context, not export)
 if(TARGET __CMAKE::CXX23)
