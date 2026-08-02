@@ -363,10 +363,15 @@ export namespace speclab::core {
             
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
-                    // Temporary workaround for GCC 15 regex bug with import std
-                    // Use simple string matching instead of regex for now
+                    // The regex filter is bypassed and all enabled tests are matched. This was
+                    // originally a GCC 15 / `import std` workaround; the GCC 15 floor has been
+                    // dropped (see issue #9 and CMakeLists.txt), so restoring
+                    // std::regex_match(testId, filterRegex) here is likely safe, but it is a
+                    // behaviour change (filtering would actually take effect) and should be
+                    // verified on GCC 16 before it is made. Until then, accept every enabled
+                    // test so filtering stays a no-op rather than silently dropping tests.
                     std::string testId = test->getId();
-                    if (testId.length() > 0) {  // Accept all enabled tests for now
+                    if (testId.length() > 0) {
                         matching.push_back(test.get());
                     }
                 }

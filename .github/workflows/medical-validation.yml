@@ -414,7 +414,7 @@ jobs:
           
           ## Platform Support
           - Windows 10+ (MSVC 17.10+)
-          - Linux (GCC 15+)
+          - Linux (GCC 16+)
           
           Ready for medical device software development and validation.
         draft: false

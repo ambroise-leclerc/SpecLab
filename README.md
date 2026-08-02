@@ -11,7 +11,7 @@ This project is an experimental early evaluation of C++23 modules feasibility fo
 
 Current Status:
 
-C++23 modules support requires cutting-edge toolchains (GCC 15+, MSVC 17.14+, Clang 20+)
+C++23 modules support requires cutting-edge toolchains (GCC 16+, MSVC 17.14+, Clang 20+)
 CMake 4.x+ experimental support for import std;
 Cross-platform compatibility still evolving
 Medical device compliance framework is conceptual/educational
@@ -106,7 +106,7 @@ SpecLab::Requirement("SRS-003", "ECG processing shall complete within 100ms")
 - **CMake 4.0+** (required for C++23 `import std` support)
 - **C++23 Compatible Compiler**:
   - MSVC 17.14+ (Visual Studio 2022 17.10+)
-  - GCC 15.0+ (experimental)
+  - GCC 16.0+ (GCC 15 cannot build this project — see issue #9)
   - Clang 20.0+ (experimental)
 
 ### Build Instructions

@@ -460,7 +460,7 @@ jobs:
         echo "" >> docs/medical/README.md
         echo "## Supported Platforms" >> docs/medical/README.md
         echo "- Windows 10+ (MSVC 17.10+)" >> docs/medical/README.md
-        echo "- Linux (GCC 15+, Clang 20+)" >> docs/medical/README.md
+        echo "- Linux (GCC 16+, Clang 20+)" >> docs/medical/README.md
         echo "" >> docs/medical/README.md
         echo "## Example Devices" >> docs/medical/README.md
         echo "- Pulse Oximeter (Class B)" >> docs/medical/README.md
