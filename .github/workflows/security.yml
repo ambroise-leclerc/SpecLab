@@ -75,7 +75,7 @@ jobs:
     name: Static Application Security Testing
     runs-on: ubuntu-latest
     container:
-      image: gcc:15
+      image: gcc:16
       options: --user root
     
     steps:
@@ -102,7 +102,7 @@ jobs:
       run: |
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_CXX_COMPILER=g++-15 \
+          -DCMAKE_CXX_COMPILER=g++ \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_ENABLE_SANITIZERS=ON
         cmake --build build --parallel

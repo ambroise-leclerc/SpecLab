@@ -143,22 +143,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # GCC 15 - the minimum this project supports (CMakeLists.txt enforces it).
+          # GCC 16 only. There is deliberately no GCC 15 leg.
           #
-          # Known defective for `import std`: GCC 15 does not round-trip parts of libstdc++'s
-          # std module through a second-level BMI, so compiling speclab.runners.testrunner (which
-          # imports speclab.core.testsuite, which imports std) fails with "failed to read
-          # compiled module cluster N: Bad file data". continue-on-error keeps the leg visible
-          # and reporting without blocking merges on an upstream compiler bug we cannot fix.
-          # Drop continue-on-error once a GCC 15.x point release fixes it - do not drop the leg.
-          - gcc-version: 15
-            allow-failure: true
-          # GCC 16 - builds cleanly, including the modules path GCC 15 chokes on. This is the
-          # leg that must stay green. Keeping both means a regression affecting only one GCC
-          # version is still caught, which is the same reason MduX runs gcc:15 and gcc:16.
+          # GCC 15 cannot build this project with `import std`: it does not round-trip parts of
+          # libstdc++'s std module through a second-level BMI, so compiling
+          # speclab.runners.testrunner (which imports speclab.core.testsuite, which imports std)
+          # fails with "failed to read compiled module cluster N: Bad file data". Reproducible on
+          # 15.2 and in CI, and unrelated to how SpecLab uses std::future - it persists with
+          # every future/promise/async removed from the tree.
+          #
+          # The leg was carried briefly as continue-on-error, but a job that is expected to fail
+          # teaches a reader nothing and leaves a permanent red check on every PR. Add a leg back
+          # when there is a GCC 15.x that actually builds this project.
           - gcc-version: 16
-            allow-failure: false
-    continue-on-error: ${{ matrix.allow-failure }}
 
     steps:
     - name: Checkout code
@@ -338,9 +335,7 @@ jobs:
         name: windows-msvc-x64-compliance
         path: artifacts/windows
 
-    # gcc16, not gcc15: the GCC 15 leg is continue-on-error while its `import std` defect is
-    # unfixed upstream, so it may legitimately produce no artifact. Depending on it here would
-    # make compliance validation fail for a reason that has nothing to do with compliance.
+    # gcc16: GCC 16 is the only Linux leg (see the linux-gcc matrix for why GCC 15 is absent).
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:

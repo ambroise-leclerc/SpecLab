@@ -337,10 +337,10 @@ export namespace speclab::runners {
          *       serialisation of libstdc++'s `std` module through a second-level BMI, not in
          *       our use of futures, and GCC 15 still fails identically now that no future,
          *       promise or async remains anywhere in SpecLab. Removing them did not fix it;
-         *       GCC 16 does, which is why CI builds on both and GCC 15 is continue-on-error.
-         *       So this is not a load-bearing workaround - but going back to std::async would
-         *       reintroduce the one construct known to be mis-serialised by a compiler we
-         *       still support, for no gain. Leave it until GCC 15 is dropped.
+         *       GCC 16 does, which is why CI builds on GCC 16 only. So this is not a
+         *       load-bearing workaround, and if you want the shorter std::async form back,
+         *       nothing here is stopping you - just verify it on whatever the minimum
+         *       supported GCC is at the time rather than assuming this note still applies.
          *
          *       (2) `config_.testTimeout` bounds the *wait*, not the wall clock. On timeout we
          *       call request_stop() and then join() - but the worker below casts its stop_token
