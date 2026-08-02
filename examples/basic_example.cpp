@@ -203,7 +203,6 @@ void showFrameworkInfo() {
     
     auto info = SpecLab::getFrameworkInfo();
     std::println("Version: {}", info.version);
-    std::println("Build Date: {}", info.buildDate);
     std::println("C++ Version: {}", info.cppVersion);
     std::println("Medical Compliance: {}", info.medicalComplianceEnabled ? "Enabled" : "Disabled");
     

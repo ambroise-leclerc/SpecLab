@@ -111,12 +111,22 @@ export namespace speclab::core {
 
     /**
      * @brief Collection of test results with statistics
+     *
+     * @note Thread-safety contract: this class is **not** internally synchronised. Callers
+     *       serialise access themselves - every parallel execution path in
+     *       speclab.core.testsuite (executeParallel, executeTestsParallel, executeAllParallel)
+     *       and in speclab.runners.testrunner calls addResult() while holding its own local
+     *       resultsMutex. Do not add a mutex here without removing those external locks: if an
+     *       internal mutex is ever the *same* object a caller already holds, the runner
+     *       deadlocks rather than merely double-locking.
      */
     class TestResultCollection {
     public:
         /**
          * @brief Add a test result
          * @param result Result to add
+         * @note Not thread-safe; the caller must serialise concurrent calls. See the
+         *       class-level thread-safety contract above.
          */
         void addResult(TestResult result) {
             results_.push_back(std::move(result));

@@ -53,7 +53,7 @@ jobs:
 
     - name: Setup Windows MSVC
       if: matrix.platform == 'windows'
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: ${{ matrix.arch }}
 
@@ -97,8 +97,8 @@ jobs:
         cmake -B release-build \
           -G ${{ matrix.cmake-generator }} \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_COMPILER=g++-15 \
-          -DCMAKE_C_COMPILER=gcc-15 \
+          -DCMAKE_CXX_COMPILER=g++ \
+          -DCMAKE_C_COMPILER=gcc \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
@@ -262,7 +262,7 @@ jobs:
     name: Release Linux (x64)
     runs-on: ubuntu-24.04
     container:
-      image: gcc:15
+      image: gcc:16
       options: --user root
     
     steps:

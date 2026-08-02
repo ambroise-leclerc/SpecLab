@@ -25,7 +25,7 @@ export namespace speclab::runners {
          * @brief Configuration for test execution
          */
         struct Config {
-            std::size_t maxThreads = std::thread::hardware_concurrency();
+            std::size_t maxThreads = 0; // Will be set to hardware_concurrency in constructor if 0
             bool parallelExecution = true;
             bool stopOnFirstFailure = false;
             bool stopOnCriticalFailure = true;
@@ -35,11 +35,20 @@ export namespace speclab::runners {
         };
 
         /**
-         * @brief Construct test runner with configuration
+         * @brief Construct test runner with default configuration
+         */
+        TestRunner() : config_{} {
+            resolveThreadCount();
+            setReporter(std::make_unique<reporters::ConsoleReporter>());
+        }
+
+        /**
+         * @brief Construct test runner with custom configuration
          * @param config Execution configuration
          */
-        explicit TestRunner(Config config = {}) 
+        explicit TestRunner(Config config)
             : config_(std::move(config)) {
+            resolveThreadCount();
             setReporter(std::make_unique<reporters::ConsoleReporter>());
         }
 
@@ -172,6 +181,23 @@ export namespace speclab::runners {
         mutable std::mutex statsMutex_;
 
         /**
+         * @brief Resolve Config::maxThreads == 0 into a usable worker count
+         *
+         * @note std::thread::hardware_concurrency() is permitted to return 0 when the value is
+         *       not computable (it does so under some containers and sandboxes). Leaving that 0
+         *       in place would make executeParallel() spawn no workers at all, so every test
+         *       would be silently skipped and the suite would report an empty, passing result
+         *       set - the worst possible failure mode for a medical device test runner. Clamp
+         *       to at least one worker, which degrades to sequential execution.
+         */
+        void resolveThreadCount() {
+            if (config_.maxThreads == 0) {
+                const unsigned int detected = std::thread::hardware_concurrency();
+                config_.maxThreads = (detected > 0) ? static_cast<std::size_t>(detected) : 1u;
+            }
+        }
+
+        /**
          * @brief Execute tests sequentially
          * @param suite Test suite to execute
          * @return Test results
@@ -298,54 +324,88 @@ export namespace speclab::runners {
          * @brief Execute a single test with timeout handling
          * @param test Test case to execute
          * @return Test result
+         *
+         * @note Why jthread + mutex + condition_variable rather than the much shorter
+         *       `std::async` / `std::future` form: do not "simplify" this back without reading
+         *       the two caveats below first.
+         *
+         *       (1) This shape was adopted while chasing a GCC 15 modules failure - importing
+         *       speclab.core.testsuite from this module gives "failed to read compiled module
+         *       cluster N: Bad file data" then "failed to load pendings for
+         *       'std::_Sp_counted_ptr_inplace'", naming std::__future_base::_State_baseV2. Be
+         *       clear about what that does and does not mean: the defect is in GCC 15's own
+         *       serialisation of libstdc++'s `std` module through a second-level BMI, not in
+         *       our use of futures, and GCC 15 still fails identically now that no future,
+         *       promise or async remains anywhere in SpecLab. Removing them did not fix it;
+         *       GCC 16 does, which is why CI builds on GCC 16 only. So this is not a
+         *       load-bearing workaround, and if you want the shorter std::async form back,
+         *       nothing here is stopping you - just verify it on whatever the minimum
+         *       supported GCC is at the time rather than assuming this note still applies.
+         *
+         *       (2) `config_.testTimeout` bounds the *wait*, not the wall clock. On timeout we
+         *       call request_stop() and then join() - but the worker below casts its stop_token
+         *       to void and TestCase::execute() has no cancellation point, so a test that hangs
+         *       hangs the runner regardless of the configured timeout. Making the timeout real
+         *       requires tests to poll their own stop_token (or detaching the worker and
+         *       accepting a leaked thread). This is a known limitation, not enforcement.
          */
         core::TestResult executeTest(core::TestCase& test) {
             auto startTime = std::chrono::steady_clock::now();
             
-            // Execute test with timeout
-            std::promise<core::TestResult> resultPromise;
-            auto resultFuture = resultPromise.get_future();
+            std::mutex mtx;
+            std::condition_variable cv;
+            std::optional<core::TestResult> sharedResult;
+            bool done = false;
             
             std::jthread testThread([&](std::stop_token stopToken) {
-                (void)stopToken; // Suppress unused parameter warning
+                (void)stopToken;
                 try {
                     auto result = test.execute();
                     result.testId = test.getTestId();
-                    resultPromise.set_value(result);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(result);
+                    done = true;
                 } catch (const std::exception& e) {
                     core::TestResult errorResult(core::TestStatus::Error, e.what());
                     errorResult.testId = test.getTestId();
-                    resultPromise.set_value(errorResult);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(errorResult);
+                    done = true;
                 } catch (...) {
                     core::TestResult errorResult(core::TestStatus::Error, "Unknown exception");
                     errorResult.testId = test.getTestId();
-                    resultPromise.set_value(errorResult);
+                    std::lock_guard<std::mutex> lock(mtx);
+                    sharedResult = std::move(errorResult);
+                    done = true;
                 }
+                cv.notify_one();
             });
             
             // Wait for completion or timeout
-            auto status = resultFuture.wait_for(config_.testTimeout);
-            
-            if (status == std::future_status::timeout) {
-                testThread.request_stop();
-                if (testThread.joinable()) {
-                    testThread.join();
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+                if (!cv.wait_for(lock, config_.testTimeout, [&done]{ return done; })) {
+                    testThread.request_stop();
+                    lock.unlock();
+                    if (testThread.joinable()) {
+                        testThread.join();
+                    }
+                    
+                    std::lock_guard<std::mutex> statsLock(statsMutex_);
+                    stats_.timeouts++;
+                    
+                    core::TestResult timeoutResult(core::TestStatus::Error, "Test timeout");
+                    timeoutResult.testId = test.getTestId();
+                    timeoutResult.duration = config_.testTimeout;
+                    return timeoutResult;
                 }
-                
-                std::lock_guard<std::mutex> lock(statsMutex_);
-                stats_.timeouts++;
-                
-                core::TestResult timeoutResult(core::TestStatus::Error, "Test timeout");
-                timeoutResult.testId = test.getTestId();
-                timeoutResult.duration = config_.testTimeout;
-                return timeoutResult;
             }
             
             if (testThread.joinable()) {
                 testThread.join();
             }
             
-            auto result = resultFuture.get();
+            auto result = std::move(*sharedResult);
             auto endTime = std::chrono::steady_clock::now();
             result.duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime);
             

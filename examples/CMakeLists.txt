@@ -27,6 +27,9 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -fmodules
     )
 endif()
+# No Clang branch: the example inherits its std module from __CMAKE::CXX23 below, exactly as
+# the speclab target does. See the note in the root CMakeLists.txt for why a hand-rolled
+# -fmodule-file=std=.../std.pcm cannot coexist with it.
 
 # Link to standard library module if available
 if(TARGET __CMAKE::CXX23)
@@ -72,6 +75,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -fmodules
     )
 endif()
+# No Clang branch - see basic_example above.
 
 # Link to standard library module if available
 if(TARGET __CMAKE::CXX23)

@@ -319,25 +319,36 @@ export namespace speclab::core {
          * @param results Result collection to populate
          */
         void executeParallel(TestResultCollection& results) {
-            std::vector<std::future<TestResult>> futures;
-            futures.reserve(testCases_.size());
+            // TestResultCollection is not internally synchronised - this mutex is what makes
+            // the addResult() calls below safe, and the same pattern is repeated in
+            // executeTestsParallel() and executeAllParallel(). See the thread-safety contract
+            // on TestResultCollection in speclab.core.testresult before changing either side.
+            std::mutex resultsMutex;
+            std::vector<std::jthread> workers;
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
-                    futures.push_back(std::async(std::launch::async, [&test, this]() {
-                        auto result = test->execute();
-                        result.suiteName = name_;
-                        speclab::core::AugmentResultWithRequirements(result);
-                        return result;
-                    }));
+                    workers.emplace_back([testPtr = test.get(), &results, &resultsMutex, this](std::stop_token) {
+                        TestResult result;
+                        try {
+                            result = testPtr->execute();
+                            result.suiteName = name_;
+                            speclab::core::AugmentResultWithRequirements(result);
+                        } catch (const std::exception& e) {
+                            result = TestResult(TestStatus::Error,
+                                std::format("Parallel execution error: {}", e.what()));
+                            result.suiteName = name_;
+                        } catch (...) {
+                            result = TestResult(TestStatus::Error,
+                                "Parallel execution error: unknown exception");
+                            result.suiteName = name_;
+                        }
+                        std::lock_guard<std::mutex> lock(resultsMutex);
+                        results.addResult(std::move(result));
+                    });
                 }
             }
-            for (auto& future : futures) {
-                try { results.addResult(future.get()); }
-                catch (const std::exception& e) {
-                    TestResult errorResult(TestStatus::Error, std::format("Parallel execution error: {}", e.what()));
-                    errorResult.suiteName = name_;
-                    results.addResult(std::move(errorResult));
-                }
+            for (auto& worker : workers) {
+                if (worker.joinable()) worker.join();
             }
         }
         
@@ -384,23 +395,30 @@ export namespace speclab::core {
          * @param results Result collection to populate
          */
         void executeTestsParallel(const std::vector<TestCase*>& tests, TestResultCollection& results) {
-            std::vector<std::future<TestResult>> futures;
-            futures.reserve(tests.size());
+            std::mutex resultsMutex;
+            std::vector<std::jthread> workers;
             for (auto* test : tests) {
-                futures.push_back(std::async(std::launch::async, [test, this]() {
-                    auto result = test->execute();
-                    result.suiteName = name_;
-                    speclab::core::AugmentResultWithRequirements(result);
-                    return result;
-                }));
+                workers.emplace_back([test, &results, &resultsMutex, this](std::stop_token) {
+                    TestResult result;
+                    try {
+                        result = test->execute();
+                        result.suiteName = name_;
+                        speclab::core::AugmentResultWithRequirements(result);
+                    } catch (const std::exception& e) {
+                        result = TestResult(TestStatus::Error,
+                            std::format("Parallel execution error: {}", e.what()));
+                        result.suiteName = name_;
+                    } catch (...) {
+                        result = TestResult(TestStatus::Error,
+                            "Parallel execution error: unknown exception");
+                        result.suiteName = name_;
+                    }
+                    std::lock_guard<std::mutex> lock(resultsMutex);
+                    results.addResult(std::move(result));
+                });
             }
-            for (auto& future : futures) {
-                try { results.addResult(future.get()); }
-                catch (const std::exception& e) {
-                    TestResult errorResult(TestStatus::Error, std::format("Parallel execution error: {}", e.what()));
-                    errorResult.suiteName = name_;
-                    results.addResult(std::move(errorResult));
-                }
+            for (auto& worker : workers) {
+                if (worker.joinable()) worker.join();
             }
         }
         
@@ -521,30 +539,35 @@ export namespace speclab::core {
         }
         
         void executeAllParallel(TestResultCollection& allResults) {
-            std::vector<std::future<TestResultCollection>> futures;
-            futures.reserve(suites_.size());
+            std::mutex resultsMutex;
+            std::vector<std::jthread> workers;
             
-            // Launch all suites
             for (const auto& [name, suite] : suites_) {
                 if (suite && suite->isEnabled()) {
-                    futures.push_back(std::async(std::launch::async, [&suite]() {
-                        return suite->execute();
-                    }));
+                    workers.emplace_back([suitePtr = suite.get(), &allResults, &resultsMutex](std::stop_token) {
+                        try {
+                            auto suiteResults = suitePtr->execute();
+                            std::lock_guard<std::mutex> lock(resultsMutex);
+                            for (const auto& result : suiteResults.getResults()) {
+                                allResults.addResult(result);
+                            }
+                        } catch (const std::exception& e) {
+                            TestResult errorResult(TestStatus::Error, 
+                                std::format("Suite execution error: {}", e.what()));
+                            std::lock_guard<std::mutex> lock(resultsMutex);
+                            allResults.addResult(std::move(errorResult));
+                        } catch (...) {
+                            TestResult errorResult(TestStatus::Error,
+                                "Suite execution error: unknown exception");
+                            std::lock_guard<std::mutex> lock(resultsMutex);
+                            allResults.addResult(std::move(errorResult));
+                        }
+                    });
                 }
             }
             
-            // Collect results
-            for (auto& future : futures) {
-                try {
-                    auto suiteResults = future.get();
-                    for (const auto& result : suiteResults.getResults()) {
-                        allResults.addResult(result);
-                    }
-                } catch (const std::exception& e) {
-                    TestResult errorResult(TestStatus::Error, 
-                        std::format("Suite execution error: {}", e.what()));
-                    allResults.addResult(std::move(errorResult));
-                }
+            for (auto& worker : workers) {
+                if (worker.joinable()) worker.join();
             }
         }
         

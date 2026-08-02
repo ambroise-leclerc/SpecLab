@@ -54,9 +54,10 @@ struct SpO2Reading {
     bool isValid;               // Reading validity flag
     
     SpO2Reading() : spo2Percent(0.0), pulseRate(0.0), signalStrength(0.0)
-                  , deviceState(DeviceState::NoSignal), isValid(false)
+                  , deviceState(DeviceState::NoSignal)
                   , timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
-                      std::chrono::steady_clock::now().time_since_epoch())) {}
+                      std::chrono::steady_clock::now().time_since_epoch()))
+                  , isValid(false) {}
 };
 
 /**
@@ -140,14 +141,11 @@ public:
         reading.signalStrength = signal.signalQuality;
         reading.isValid = true;
         
-        // Determine device state based on SpO2 level
-        if (spo2 < 85.0) {
-            currentState_ = DeviceState::MedicalAttention;
-        } else if (spo2 >= 95.0) {
-            currentState_ = DeviceState::Measuring;
-        } else {
-            currentState_ = DeviceState::Measuring; // Lower normal range
-        }
+        // Determine device state based on SpO2 level.
+        // Only the critical threshold changes state: both the normal range (>= 95%) and the
+        // lower normal range (85-95%) are Measuring, so they are one branch. Writing them as
+        // two identical branches is what -Wduplicated-branches (GCC 16) rejects.
+        currentState_ = (spo2 < 85.0) ? DeviceState::MedicalAttention : DeviceState::Measuring;
         
         reading.deviceState = currentState_;
         return reading;
@@ -547,7 +545,7 @@ void runBDDTests() {
             PulseOximeter device;
             device.powerOn();
             ProbeSignal disconnectedSignal(0.0, 0.0, 0.0, false); // Disconnected
-            auto reading = device.processSignal(disconnectedSignal);
+            [[maybe_unused]] auto reading = device.processSignal(disconnectedSignal);
             
             if (device.getCurrentState() != DeviceState::NoSignal) {
                 throw AssertionFailure("Probe disconnection not detected", std::source_location::current());
@@ -571,7 +569,7 @@ void runBDDTests() {
             PulseOximeter device;
             device.powerOn();
             ProbeSignal poorSignal(0.5, 0.6, 0.2, true); // Poor quality
-            auto reading = device.processSignal(poorSignal);
+            [[maybe_unused]] auto reading = device.processSignal(poorSignal);
             
             if (device.getCurrentState() != DeviceState::Searching) {
                 throw AssertionFailure("Poor signal quality not handled correctly", std::source_location::current());

@@ -17,7 +17,10 @@ export namespace speclab::core {
         bool requiresValidation{false};
         std::string source;                      // e.g. MRD, SRS reference
         std::string version{"1.0"};
-        std::unordered_map<std::string,std::string> metadata; // extension point
+        // Default member initializer, not a bare declaration: without it every designated
+        // initializer that omits .metadata trips -Wmissing-field-initializers under -Werror,
+        // pushing `.metadata = {}` into every call site for no semantic gain.
+        std::unordered_map<std::string,std::string> metadata{}; // extension point
     };
 
     struct RequirementsConfig {
