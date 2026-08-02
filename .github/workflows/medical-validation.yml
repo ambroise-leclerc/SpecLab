@@ -160,18 +160,11 @@ jobs:
       with:
         cmakeVersion: '4.0.3'
 
-    - name: Setup GCC
-      run: |
-        gcc --version
-        g++ --version
-        ln -sf /usr/local/bin/gcc /usr/local/bin/gcc-15
-        ln -sf /usr/local/bin/g++ /usr/local/bin/g++-15
-
     - name: Build with Risk Management Features
       run: |
         cmake -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_COMPILER=g++-15 \
+          -DCMAKE_CXX_COMPILER=g++ \
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_ISO14971_VALIDATION=ON \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
@@ -321,21 +314,18 @@ jobs:
     steps:
     - name: Download IEC 62304 Report
       uses: actions/download-artifact@v4
-      continue-on-error: true
       with:
         name: iec62304-validation-report
         path: reports/
 
     - name: Download ISO 14971 Report
       uses: actions/download-artifact@v4
-      continue-on-error: true
       with:
         name: iso14971-validation-report
         path: reports/
 
     - name: Download FDA 21 CFR 820 Report
       uses: actions/download-artifact@v4
-      continue-on-error: true
       with:
         name: fda-21cfr820-validation-report
         path: reports/
