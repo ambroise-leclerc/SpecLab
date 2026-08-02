@@ -160,9 +160,22 @@ endif()
 # opaquely at build time on the very image CI would use. Clang gets its std module from
 # CMAKE_EXPERIMENTAL_CXX_IMPORT_STD like every other compiler here.
 
-# Link to the std module if available (only in build context, not export)
+# Link to the std module if available (only in build context, not export).
+#
+# The $<BUILD_INTERFACE:...> wrapper is what makes that comment true. speclab is a static
+# library, so even a PRIVATE dependency is recorded in INTERFACE_LINK_LIBRARIES (consumers must
+# link it transitively) - which drags CMake's synthesised std target into the speclabTargets
+# export set, and the generate step then fails with:
+#     CMake Error in CMakeLists.txt:
+#       requires target "__cmake_cxx23" that is not in any export set.
+# That target is internal to CMake and cannot be exported. BUILD_INTERFACE keeps it in the
+# build and drops it from the installed config.
+#
+# This only bites where __CMAKE::CXX23 actually exists. It is absent under the Visual Studio
+# generator (MSVC supplies its own std module via /experimental:module), which is why the bug
+# stayed hidden until CI moved the Windows jobs to Ninja.
 if(TARGET __CMAKE::CXX23)
-    target_link_libraries(speclab PRIVATE __CMAKE::CXX23)
+    target_link_libraries(speclab PRIVATE $<BUILD_INTERFACE:__CMAKE::CXX23>)
 endif()
 
 # Apply compiler settings
