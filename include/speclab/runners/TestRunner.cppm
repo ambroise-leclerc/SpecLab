@@ -325,29 +325,19 @@ export namespace speclab::runners {
          * @param test Test case to execute
          * @return Test result
          *
-         * @note Why jthread + mutex + condition_variable rather than the much shorter
-         *       `std::async` / `std::future` form: do not "simplify" this back without reading
-         *       the two caveats below first.
-         *
-         *       (1) This shape was adopted while chasing a GCC 15 modules failure - importing
-         *       speclab.core.testsuite from this module gives "failed to read compiled module
-         *       cluster N: Bad file data" then "failed to load pendings for
-         *       'std::_Sp_counted_ptr_inplace'", naming std::__future_base::_State_baseV2. Be
-         *       clear about what that does and does not mean: the defect is in GCC 15's own
-         *       serialisation of libstdc++'s `std` module through a second-level BMI, not in
-         *       our use of futures, and GCC 15 still fails identically now that no future,
-         *       promise or async remains anywhere in SpecLab. Removing them did not fix it;
-         *       GCC 16 does, which is why CI builds on GCC 16 only. So this is not a
-         *       load-bearing workaround, and if you want the shorter std::async form back,
-         *       nothing here is stopping you - just verify it on whatever the minimum
-         *       supported GCC is at the time rather than assuming this note still applies.
-         *
-         *       (2) `config_.testTimeout` bounds the *wait*, not the wall clock. On timeout we
+         * @note `config_.testTimeout` bounds the *wait*, not the wall clock. On timeout we
          *       call request_stop() and then join() - but the worker below casts its stop_token
          *       to void and TestCase::execute() has no cancellation point, so a test that hangs
          *       hangs the runner regardless of the configured timeout. Making the timeout real
          *       requires tests to poll their own stop_token (or detaching the worker and
          *       accepting a leaked thread). This is a known limitation, not enforcement.
+         *
+         *       The `jthread` + `mutex` + `condition_variable` shape (rather than the shorter
+         *       `std::async` / `std::future` form) is retained conservatively. It was adopted
+         *       to dodge a GCC 15 std-module serialisation defect; GCC 15 is no longer
+         *       supported (see CMakeLists.txt floor and issue #9), so the original constraint
+         *       is gone, but a switch back to `std::async` is a behaviour change that should be
+         *       verified on the current minimum supported GCC before it is made.
          */
         core::TestResult executeTest(core::TestCase& test) {
             auto startTime = std::chrono::steady_clock::now();

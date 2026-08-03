@@ -139,11 +139,21 @@ export namespace speclab::core {
          * @param filter Test ID filter (regex pattern)
          * @param parallel Execute tests in parallel
          * @return Collection of filtered test results
+         *
+         * @warning The filter is currently inert: `getMatchingTests` ignores `filterRegex` and
+         *          returns every enabled test, so this runs the *whole* suite and reports it as
+         *          a filtered run. Callers that feed results into traceability artifacts must
+         *          not treat the output as evidence that only the matching subset was
+         *          exercised. See the note on getMatchingTests() for why the bypass is still
+         *          here and what restoring it requires.
          */
         TestResultCollection executeFiltered(std::string_view filter, bool parallel = false) {
             TestResultCollection results;
-            const std::regex filterRegex{std::string(filter)};
             try {
+                // Constructed inside the try: an invalid pattern throws std::regex_error, which
+                // belongs in the collection as a suite failure like every other exception here
+                // rather than escaping to the caller.
+                const std::regex filterRegex{std::string(filter)};
                 setUpSuite();
                 auto matchingTests = getMatchingTests(filterRegex);
                 if (parallel && matchingTests.size() > 1) {
@@ -363,10 +373,15 @@ export namespace speclab::core {
             
             for (const auto& test : testCases_) {
                 if (test && test->isEnabled()) {
-                    // Temporary workaround for GCC 15 regex bug with import std
-                    // Use simple string matching instead of regex for now
+                    // The regex filter is bypassed and all enabled tests are matched. This was
+                    // originally a GCC 15 / `import std` workaround; the GCC 15 floor has been
+                    // dropped (see issue #9 and CMakeLists.txt), so restoring
+                    // std::regex_match(testId, filterRegex) here is likely safe, but it is a
+                    // behaviour change (filtering would actually take effect) and should be
+                    // verified on GCC 16 before it is made. Until then, accept every enabled
+                    // test so filtering stays a no-op rather than silently dropping tests.
                     std::string testId = test->getId();
-                    if (testId.length() > 0) {  // Accept all enabled tests for now
+                    if (testId.length() > 0) {
                         matching.push_back(test.get());
                     }
                 }

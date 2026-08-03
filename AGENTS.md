@@ -7,19 +7,29 @@ are easy to get wrong or that contradict the docs.
 ## Toolchain (strict)
 
 - CMake **4.0+**, C++23, no extensions (`CMAKE_CXX_EXTENSIONS OFF`).
-- Compiler minimums enforced in `CMakeLists.txt`: MSVC 19.40+ (17.10), GCC 15+,
-  Clang 20+. Other compilers abort configure.
+- Compiler minimums enforced in `CMakeLists.txt`: MSVC 19.40+ (17.10), GCC 16+,
+  Clang 20+. Other compilers abort configure. **GCC 15 is not supported** (see
+  issue #9): it does not round-trip libstdc++'s `std` module through a
+  second-level BMI, so `speclab.runners.testrunner` fails to compile. CI's only
+  Linux leg is GCC 16.
 - Default build type is `RelWithDebInfo` (set in `cmake/StandardProjectSettings.cmake`).
-- `import std` is handled per-compiler — do not assume a uniform path:
-  - **MSVC**: `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` UUID
-    `d0edc3af-4c50-42ea-a356-e2862fe7a444` is required. CI passes it on the
-    command line; `CMakeLists.txt` sets it internally too.
-  - **GCC**: `CMakeLists.txt` deliberately leaves `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`
-    unset (synthesizing `__CMAKE::CXX23` references nonexistent `std.cc` on some
-    libstdc++ setups). Instead a custom `build_std_module` target precompiles
-    system headers with `-fmodules-ts`; `speclab` depends on it.
-  - **Clang**: experimental flag is left empty; Clang is not currently building
-    cleanly (CI's clang job is disabled due to libc++/`import std` cyclic deps).
+- `import std` is uniform across compilers — there is no per-compiler path and no
+  manually precompiled std module anywhere in the build:
+  - `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` (UUID
+    `d0edc3af-4c50-42ea-a356-e2862fe7a444`, tied to the CMake release) is set
+    unconditionally *before* `project()`. It cannot be guarded on
+    `CMAKE_CXX_COMPILER_ID`: that variable is only populated by compiler detection
+    inside `project()`, so guarding it there silently disables `import std` for
+    everything. CI also passes it on the command line.
+  - CMake then synthesizes `__CMAKE::CXX23` for every supported compiler and
+    `speclab` links it (build context only, not the install export set).
+  - No `build_std_module` target exists — the old GCC one precompiled *header
+    units* (`import <vector>;`), which is a different feature from `import std;`,
+    and it was removed. Do not reintroduce a hand-rolled `std.pcm` for Clang
+    either: it is a second definition of module `std` alongside `__CMAKE::CXX23`,
+    and the `std.cppm` path is distro-specific.
+  - **Clang**: still not building cleanly; CI's clang job is disabled (libc++ /
+    `import std` cyclic deps). There is no working Clang path today.
 
 ## Build / verify commands
 

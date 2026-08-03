@@ -16,41 +16,48 @@ project(speclab VERSION 0.1.0 DESCRIPTION "Modern C++23 Modules Testing Framewor
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Debug: Check if import std support was detected
 message(STATUS "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD: ${CMAKE_EXPERIMENTAL_CXX_IMPORT_STD}")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
-if(TARGET __CMAKE::CXX23)
-    message(STATUS "__CMAKE::CXX23 target available")
-else()
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.40")
-        message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available - Clang has no fallback path for `import std`. "
-                            "This usually means CMake rejected CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "
-                            "(\"set to incorrect value\"): the UUID above is tied to a specific CMake release. "
-                            "Use CMake 4.1.1, the version CI pins.")
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        message(STATUS "__CMAKE::CXX23 target NOT available - using manual build_std_module target instead")
-    else()
-        message(WARNING "__CMAKE::CXX23 target NOT available - import std; will not work")
-    endif()
-endif()
 
-# Compiler version requirements for C++23 modules support
+# Compiler version requirements for C++23 modules support.
+#
+# This block must stay AHEAD of the __CMAKE::CXX23 diagnostic below. A compiler under the
+# floor will not get a synthesised std module either, so running the diagnostic first would
+# report a missing __CMAKE::CXX23 (and send the reader off checking UUIDs) when the real
+# answer is simply that the compiler is too old. Floor first, then the target check.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.40")
         message(FATAL_ERROR "MSVC 17.14 (Visual Studio 2022 version 17.10) or later is required for C++23 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
-        message(FATAL_ERROR "GCC 15 or later is required for C++23 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
+        message(FATAL_ERROR "GCC 16 or later is required for C++23 modules support. GCC 15 cannot round-trip libstdc++'s std module through a second-level BMI, so compiling speclab.runners.testrunner (which imports speclab.core.testsuite, which imports std) fails. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "20.0")
         message(FATAL_ERROR "Clang 20 or later is required for C++23 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
     endif()
 else()
-    message(WARNING "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. SpecLab requires MSVC 17.14+, GCC 15+, or Clang 20+ for C++23 modules support.")
+    message(WARNING "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. SpecLab requires MSVC 17.14+, GCC 16+, or Clang 20+ for C++23 modules support.")
+endif()
+
+# Check whether CMake actually synthesised the managed std module. Reached only by compilers
+# at or above the floor checked above, so an absent target here is a CMake/UUID problem
+# rather than an out-of-date compiler. There is no manual fallback for any compiler - see the
+# comment above the __CMAKE::CXX23 link below for why none is offered.
+if(TARGET __CMAKE::CXX23)
+    message(STATUS "__CMAKE::CXX23 target available")
+else()
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available on ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}, "
+                            "and there is no fallback path for `import std`. This usually means CMake rejected "
+                            "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD (\"set to incorrect value\"): the UUID above is tied "
+                            "to a specific CMake release. Use CMake 4.1.1, the version CI pins.")
+    else()
+        message(WARNING "__CMAKE::CXX23 target NOT available - import std; will not work")
+    endif()
 endif()
 
 
@@ -130,35 +137,16 @@ target_include_directories(speclab PUBLIC
 
 target_compile_features(speclab PUBLIC cxx_std_23)
 
-# Build the std module first for GCC and Clang
-# When CMAKE_EXPERIMENTAL_CXX_IMPORT_STD is set CMake provides __CMAKE::CXX23;
-# manual header-unit precompilation would conflict with the managed std module.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT TARGET __CMAKE::CXX23)
-    # Fallback: precompile individual system headers when import std is not managed by CMake
-    add_custom_target(build_std_module
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header iostream
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header vector
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header string
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header memory
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header thread
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header mutex
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header atomic
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header chrono
-        COMMAND ${CMAKE_CXX_COMPILER} -std=c++23 -fmodules-ts -x c++-system-header source_location
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Building std module for GCC"
-    )
-    add_dependencies(speclab build_std_module)
-endif()
-
-# There is intentionally no Clang branch here. A manually precompiled std.pcm
-# (clang --precompile .../libc++/v1/std.cppm plus -fmodule-file=std=...) is a *second*
-# definition of module std alongside the __CMAKE::CXX23 one linked below, and Clang
-# rejects that outright ("module 'std' is defined in both ..."). The path it needs is also
-# distro-specific - /usr/lib/llvm-20/share/libc++/v1/std.cppm ships in Debian's
-# libc++-20-dev but not in silkeh/clang:20 or most source-built LLVMs - so it would fail
-# opaquely at build time on the very image CI would use. Clang gets its std module from
-# CMAKE_EXPERIMENTAL_CXX_IMPORT_STD like every other compiler here.
+# No compiler gets a manually precompiled std module here. With
+# CMAKE_EXPERIMENTAL_CXX_IMPORT_STD set unconditionally above, CMake synthesises
+# __CMAKE::CXX23 for every supported compiler and links it below. The previous GCC
+# `build_std_module` target precompiled *header units* (import <vector>;), which is a
+# different feature from `import std;` and never provided the fallback it claimed; it
+# was dead code (guarded by NOT TARGET __CMAKE::CXX23, which is always false here) and
+# is gone. A manually precompiled Clang std.pcm path is deliberately not added either:
+# it would be a second definition of module std alongside __CMAKE::CXX23, and the
+# std.cppm path is distro-specific (/usr/lib/llvm-20/share/libc++/v1/std.cppm ships in
+# Debian's libc++-20-dev but not in silkeh/clang:20 or most source-built LLVMs).
 
 # Link to the std module if available (only in build context, not export).
 #
