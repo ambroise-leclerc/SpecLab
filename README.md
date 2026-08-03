@@ -281,7 +281,9 @@ speclab/
 │   ├── TestCase.cppm            # Base test implementations
 │   ├── TestSuite.cppm           # Test suite management
 │   ├── Assertions.cppm          # Assertion framework
-│   └── FunctionalAPI.cppm       # New functional BDD API
+│   ├── Requirements.cppm        # Requirement model & registry (traceability)
+│   ├── RequirementAPI.cppm      # Builder + coverage/traceability free functions
+│   └── FunctionalAPI.cppm      # Functional BDD API
 ├── medical/
 │   ├── MedicalTestCase.cppm     # Medical device test cases
 │   ├── ComplianceValidator.cppm # Regulatory compliance
@@ -302,6 +304,99 @@ speclab/
 - **Performance**: Real-time system optimizations
 - **Traceability**: Full audit trail for compliance
 - **Safety First**: Critical failure handling and recovery
+
+## Requirements Traceability
+
+SpecLab includes a lightweight requirement model and registry for building a
+traceability matrix between requirements and the tests that cover them. The
+API lives in the `speclab.core.requirements` module
+(`core/Requirements.cppm` / `core/RequirementAPI.cppm`) and is exported from
+`speclab::core`.
+
+### Requirement Model
+
+A `Requirement` has these fields:
+
+- `id`, `description` — canonical identifier and human-readable statement.
+- `riskLevel` (LOW | MEDIUM | HIGH | CRITICAL) and `safetyClass` (CLASS_A |
+  CLASS_B | CLASS_C).
+- `requiresAudit`, `requiresValidation` — drive coverage gating and audit
+  trail behaviour.
+- `source` — original source reference (e.g. SRS section, Jira key).
+- `version` — defaults to `"1.0"`.
+- `metadata` — `std::unordered_map<std::string,std::string>` extension point
+  for domain specifics (e.g. `{"subsystem","Comms"}`).
+
+### Phase 1 — Registration & Linking
+
+```cpp
+import speclab.core.requirements;
+using namespace speclab::core;
+
+RegisterRequirement({
+    .id = "REQ-100",
+    .description = "System boots in <250ms",
+    .riskLevel = "HIGH",
+    .safetyClass = "CLASS_B",
+    .requiresAudit = true,
+    .requiresValidation = true,
+    .source = "SRS-Boot"
+});
+
+TestSuite suite("Boot");
+suite.addTest("T_BootTime", [](){ /* measure boot */ });
+LinkTestRequirement("T_BootTime", "REQ-100");
+
+auto results = suite.execute();
+std::println("{}", ExportTraceMatrixCSV());
+```
+
+Best practices:
+
+- Use stable canonical IDs: `REQ-###` or domain prefixes (`ALARM-001`).
+- One test may link to multiple requirements if it validates an integrated
+  behavior; prefer focused tests when possible.
+- Store the original source reference (e.g. Jira key, SRS section) in `source`.
+
+### Phase 2 — Automatic Requirement Coverage Gate
+
+Test execution auto-populates `TestResult.requirementIds` based on links, and
+appends a synthetic `REQUIREMENT_COVERAGE` result to every suite execution:
+
+- **Passed** — all HIGH/CRITICAL requirements have at least one linked test.
+- **Failed** — uncovered HIGH requirements.
+- **Critical** — uncovered CRITICAL requirements.
+
+The `missing_requirements` metadata lists uncovered IDs when failing. No
+manual augmentation is needed; register requirements early in program init and
+link each test ID to requirement IDs via `LinkTestRequirement`. Inspect the
+`REQUIREMENT_COVERAGE` result in CI to enforce a coverage gate.
+
+### Phase 3 — Risk-Based Execution & HTML Reporting
+
+```cpp
+import speclab.core.requirements;
+using namespace speclab::core;
+
+SetRequirementsConfig({
+    .abortOnCriticalGaps = true,
+    .riskBasedOrdering = true
+});
+```
+
+- **Risk-weighted ordering** — tests linked to CRITICAL/HIGH requirements
+  execute first.
+- **Early abort** — when `abortOnCriticalGaps` is set and any CRITICAL
+  requirement has no linked test, the suite returns a synthetic
+  `REQUIREMENT_COVERAGE_PRE` result (Critical) instead of running.
+- **HTML export** — `ExportTraceMatrixHTML()` produces a styled HTML table
+  and summary; write it to disk and publish as a build artifact for audit prep.
+- **Predicates** — `HasUncoveredCriticalRequirements()` for quick checks,
+  `TestRiskScore(testId)` returns the derived risk weight (1..4).
+
+Keep requirement risk levels accurate; ordering and gating hinge on them. Use
+early abort in fast feedback loops; disable it in full nightly runs if you
+prefer full execution even with gaps.
 
 ## Testing Philosophy
 
@@ -350,6 +445,20 @@ SpecLab provides built-in support for:
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Code Style
+
+There is no `.clang-format` configuration in effect (the committed file is
+empty); apply the following conventions by hand:
+
+- 4-space indentation, no tabs.
+- Pointer/reference glued to the type: `int* ptr`, `const std::string& name`.
+- `UpperCamelCase` for classes/structs, `lowerCamelCase` for functions/variables.
+- Use `nullptr` instead of `NULL`.
+- Module files: `UpperCamelCase.cppm`. Source files: `UpperCamelCase.cpp` (examples/tests only).
+- Follow the C++ Core Guidelines; `.clang-tidy` is comprehensive.
+- Use `[[maybe_unused]]` rather than casting to `(void)` for unused locals where
+  the intent is to suppress warnings.
 
 ### Development Setup
 
