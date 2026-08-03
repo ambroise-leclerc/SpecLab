@@ -16,32 +16,15 @@ project(speclab VERSION 0.1.0 DESCRIPTION "Modern C++23 Modules Testing Framewor
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Debug: Check if import std support was detected
 message(STATUS "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD: ${CMAKE_EXPERIMENTAL_CXX_IMPORT_STD}")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
-if(TARGET __CMAKE::CXX23)
-    message(STATUS "__CMAKE::CXX23 target available")
-else()
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.40")
-        message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available - Clang has no fallback path for `import std`. "
-                            "This usually means CMake rejected CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "
-                            "(\"set to incorrect value\"): the UUID above is tied to a specific CMake release. "
-                            "Use CMake 4.1.1, the version CI pins.")
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available on GCC ${CMAKE_CXX_COMPILER_VERSION}. "
-                            "With CMAKE_EXPERIMENTAL_CXX_IMPORT_STD set above, CMake should synthesise the "
-                            "managed std module for GCC 16+; its absence usually means the UUID is tied to a "
-                            "different CMake release. Re-check the UUID against your CMake version. There is "
-                            "no manual fallback: the previous build_std_module target precompiled header "
-                            "units (import <vector>;) which is not import std; and was removed.")
-    else()
-        message(WARNING "__CMAKE::CXX23 target NOT available - import std; will not work")
-    endif()
-endif()
 
-# Compiler version requirements for C++23 modules support
+# Compiler version requirements for C++23 modules support.
+#
+# This block must stay AHEAD of the __CMAKE::CXX23 diagnostic below. A compiler under the
+# floor will not get a synthesised std module either, so running the diagnostic first would
+# report a missing __CMAKE::CXX23 (and send the reader off checking UUIDs) when the real
+# answer is simply that the compiler is too old. Floor first, then the target check.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.40")
         message(FATAL_ERROR "MSVC 17.14 (Visual Studio 2022 version 17.10) or later is required for C++23 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
@@ -56,6 +39,25 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     endif()
 else()
     message(WARNING "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. SpecLab requires MSVC 17.14+, GCC 16+, or Clang 20+ for C++23 modules support.")
+endif()
+
+# Check whether CMake actually synthesised the managed std module. Reached only by compilers
+# at or above the floor checked above, so an absent target here is a CMake/UUID problem
+# rather than an out-of-date compiler. There is no manual fallback for any compiler - see the
+# comment above the __CMAKE::CXX23 link below for why none is offered.
+if(TARGET __CMAKE::CXX23)
+    message(STATUS "__CMAKE::CXX23 target available")
+else()
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "__CMAKE::CXX23 target NOT available, but MSVC ${CMAKE_CXX_COMPILER_VERSION} should support import std with /experimental:module")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "__CMAKE::CXX23 target NOT available on ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}, "
+                            "and there is no fallback path for `import std`. This usually means CMake rejected "
+                            "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD (\"set to incorrect value\"): the UUID above is tied "
+                            "to a specific CMake release. Use CMake 4.1.1, the version CI pins.")
+    else()
+        message(WARNING "__CMAKE::CXX23 target NOT available - import std; will not work")
+    endif()
 endif()
 
 

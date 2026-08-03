@@ -139,11 +139,21 @@ export namespace speclab::core {
          * @param filter Test ID filter (regex pattern)
          * @param parallel Execute tests in parallel
          * @return Collection of filtered test results
+         *
+         * @warning The filter is currently inert: `getMatchingTests` ignores `filterRegex` and
+         *          returns every enabled test, so this runs the *whole* suite and reports it as
+         *          a filtered run. Callers that feed results into traceability artifacts must
+         *          not treat the output as evidence that only the matching subset was
+         *          exercised. See the note on getMatchingTests() for why the bypass is still
+         *          here and what restoring it requires.
          */
         TestResultCollection executeFiltered(std::string_view filter, bool parallel = false) {
             TestResultCollection results;
-            const std::regex filterRegex{std::string(filter)};
             try {
+                // Constructed inside the try: an invalid pattern throws std::regex_error, which
+                // belongs in the collection as a suite failure like every other exception here
+                // rather than escaping to the caller.
+                const std::regex filterRegex{std::string(filter)};
                 setUpSuite();
                 auto matchingTests = getMatchingTests(filterRegex);
                 if (parallel && matchingTests.size() > 1) {
