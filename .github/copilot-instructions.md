@@ -6,7 +6,7 @@ SpecLab is a C++23 modules-based testing framework for medical devices. It provi
 
 ## Build Commands
 
-**Prerequisites:** CMake 4.0+, and one of: MSVC 17.14+, GCC 16+, or Clang 20+. GCC 15 is not supported — see [CMake Module Setup](#cmake-module-setup).
+**Prerequisites:** CMake 4.0+, and one of: MSVC 17.14+, GCC 16.1+, or Clang 20+. GCC 15 is not supported — see [CMake Module Setup](#cmake-module-setup).
 
 ```bash
 # Configure and build
@@ -80,7 +80,7 @@ Requirements are registered globally via `RegisterRequirement()` and linked to t
 
 C++23 `import std` is handled by CMake via `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` (a UUID tied to the CMake release), set unconditionally before `project()`. CMake then synthesises the `__CMAKE::CXX23` target for every supported compiler and links it into `speclab`. There is **no** manually precompiled std module fallback — the previous GCC `build_std_module` target precompiled *header units* (`import <vector>;`), not `import std;`, so it never provided what it claimed; it is gone. A manually precompiled Clang `std.pcm` path is deliberately not added either (it would be a second definition of module `std` alongside `__CMAKE::CXX23`, and the `std.cppm` path is distro-specific).
 
-**GCC 15 cannot build this project** (issue #9): it does not round-trip libstdc++'s `std` module through a second-level BMI, so compiling `speclab.runners.testrunner` fails with "failed to read compiled module cluster". GCC 16 compiles the same tree cleanly and is CI's only Linux leg; `CMakeLists.txt` enforces the 16.0 floor.
+**GCC 15 cannot build this project** (issue #9): it does not round-trip libstdc++'s `std` module through a second-level BMI, so compiling `speclab.runners.testrunner` fails with "failed to read compiled module cluster". GCC 16.1 compiles the same tree cleanly and is CI's only Linux leg; `CMakeLists.txt` enforces the 16.1 floor.
 
 When adding a new `.cppm` file, add it to `target_sources(speclab ... FILE_SET cxx_modules ...)` in the root `CMakeLists.txt` in the correct position respecting the dependency chain.
 
