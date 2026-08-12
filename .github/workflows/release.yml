@@ -77,12 +77,16 @@ jobs:
             echo "Invalid release tag: $VERSION" >&2
             exit 1
           fi
+          PROJECT_VERSION=${VERSION#v}
+          PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
           VERSION=nightly-$(date +%Y%m%d)
+          PROJECT_VERSION=0.1.0
         fi
         PACKAGE_NAME="SpecLab-$VERSION-${{ matrix.platform }}-${{ matrix.arch }}"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
         echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
         echo "PACKAGE_DIR=$GITHUB_WORKSPACE/$PACKAGE_NAME" >> "$GITHUB_ENV"
         if [ "${{ matrix.platform }}" = "windows" ]; then
@@ -102,6 +106,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON `
           -DSPECLAB_BUILD_TESTS=OFF `
           -DSPECLAB_INSTALL_EXAMPLES=ON `
+          -DSPECLAB_PROJECT_VERSION="$env:PROJECT_VERSION" `
           -DCMAKE_INSTALL_PREFIX="$env:PACKAGE_DIR" `
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
@@ -116,6 +121,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
+          -DSPECLAB_PROJECT_VERSION="$PROJECT_VERSION" \
           -DCMAKE_INSTALL_PREFIX="$PACKAGE_DIR" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
@@ -242,6 +248,7 @@ jobs:
         };
         ```
         EOF
+      shell: bash
 
     - name: Package Release (Windows)
       if: matrix.platform == 'windows'
@@ -301,12 +308,16 @@ jobs:
             echo "Invalid release tag: $VERSION" >&2
             exit 1
           fi
+          PROJECT_VERSION=${VERSION#v}
+          PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
           VERSION=nightly-$(date +%Y%m%d)
+          PROJECT_VERSION=0.1.0
         fi
         PACKAGE_NAME="SpecLab-$VERSION-linux-x64"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
         echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
         echo "PACKAGE_DIR=$GITHUB_WORKSPACE/$PACKAGE_NAME" >> "$GITHUB_ENV"
         echo "ARCHIVE_NAME=$PACKAGE_NAME.tar.gz" >> "$GITHUB_ENV"
@@ -322,6 +333,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
+          -DSPECLAB_PROJECT_VERSION="$PROJECT_VERSION" \
           -DCMAKE_INSTALL_PREFIX="$PACKAGE_DIR" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
@@ -486,6 +498,7 @@ jobs:
         fi
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PACKAGE_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
 
     - name: Create vcpkg package manifest
       run: |
@@ -493,7 +506,7 @@ jobs:
         cat > vcpkg-package/vcpkg.json << EOF
         {
           "name": "speclab",
-          "version": "$VERSION",
+          "version": "$PACKAGE_VERSION",
           "description": "Medical Device Testing Framework with IEC 62304, ISO 14971, and FDA 21 CFR Part 820 compliance",
           "homepage": "https://github.com/your-org/SpecLab",
           "documentation": "https://speclab-docs.example.com",
@@ -522,7 +535,7 @@ jobs:
         
         class SpecLabConan(ConanFile):
             name = "speclab"
-            version = "$VERSION"
+            version = "$PACKAGE_VERSION"
             description = "Medical Device Testing Framework"
             license = "MIT"
             url = "https://github.com/your-org/SpecLab"
