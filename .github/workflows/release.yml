@@ -88,7 +88,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON `
           -DSPECLAB_BUILD_TESTS=OFF `
           -DSPECLAB_INSTALL_EXAMPLES=ON `
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }} `
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}" `
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Configure Release Build (Linux)
@@ -102,7 +102,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }} \
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Build Release
@@ -302,7 +302,7 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-linux-x64 \
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SpecLab-${{ steps.get_version.outputs.version }}-linux-x64" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Build Release
