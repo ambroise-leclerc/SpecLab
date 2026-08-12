@@ -7,11 +7,11 @@ are easy to get wrong or that contradict the docs.
 ## Toolchain (strict)
 
 - CMake **4.0+**, C++23, no extensions (`CMAKE_CXX_EXTENSIONS OFF`).
-- Compiler minimums enforced in `CMakeLists.txt`: MSVC 19.40+ (17.10), GCC 16.2+,
+- Compiler minimums enforced in `CMakeLists.txt`: MSVC 19.40+ (17.10), GCC 16.1+,
   Clang 20+. Other compilers abort configure. **GCC 15 is not supported** (see
   issue #9): it does not round-trip libstdc++'s `std` module through a
   second-level BMI, so `speclab.runners.testrunner` fails to compile. CI's only
-  Linux leg is GCC 16.2.
+  Linux leg is GCC 16.1.0.
 - Default build type is `RelWithDebInfo` (set in `cmake/StandardProjectSettings.cmake`).
 - `import std` is uniform across compilers — there is no per-compiler path and no
   manually precompiled std module anywhere in the build:

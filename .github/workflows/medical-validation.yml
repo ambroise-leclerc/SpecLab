@@ -141,14 +141,14 @@ jobs:
   iso14971-validation:
     name: ISO 14971 Risk Management Validation
     runs-on: ubuntu-latest
-    # gcc:16.2, not gcc:15. GCC 15 cannot build this project with `import std` enabled: it fails
+    # gcc:16.1.0, not gcc:15. GCC 15 cannot build this project with `import std` enabled: it fails
     # to round-trip parts of libstdc++'s std module through a second-level BMI, so compiling
     # speclab.runners.testrunner (which imports speclab.core.testsuite, which imports std) dies
     # with "failed to read compiled module cluster N: Bad file data". That is what made this job
-    # the only red one in the workflow. GCC 16 compiles the same tree cleanly.
-    # ci.yml builds on GCC 16 only, for the same reason.
+    # the only red one in the workflow. GCC 16.1 compiles the same tree cleanly.
+    # ci.yml builds on GCC 16.1.0 only, for the same reason.
     container:
-      image: gcc:16.2
+      image: gcc:16.1.0
       options: --user root
     if: github.event.inputs.validation_type == 'iso14971' || github.event.inputs.validation_type == 'full' || github.event.inputs.validation_type == ''
     
@@ -414,7 +414,7 @@ jobs:
           
           ## Platform Support
           - Windows 10+ (MSVC 17.10+)
-          - Linux (GCC 16.2+)
+          - Linux (GCC 16.1+)
           
           Ready for medical device software development and validation.
         draft: false

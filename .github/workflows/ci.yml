@@ -155,7 +155,7 @@ jobs:
           # The leg was carried briefly as continue-on-error, but a job that is expected to fail
           # teaches a reader nothing and leaves a permanent red check on every PR. Add a leg back
           # when there is a GCC 15.x that actually builds this project.
-          - gcc-version: "16.2"
+          - gcc-version: "16.1.0"
 
     steps:
     - name: Checkout code
@@ -335,11 +335,11 @@ jobs:
         name: windows-msvc-x64-compliance
         path: artifacts/windows
 
-    # gcc16: GCC 16.2 is the only Linux leg (see the linux-gcc matrix for why GCC 15 is absent).
+    # gcc16: GCC 16.1.0 is the only Linux leg (see the linux-gcc matrix for why GCC 15 is absent).
     - name: Download Linux artifacts
       uses: actions/download-artifact@v4
       with:
-        name: linux-gcc16.2-artifacts
+        name: linux-gcc16.1.0-artifacts
         path: artifacts/linux
 
     - name: Validate IEC 62304 Compliance
@@ -385,13 +385,13 @@ jobs:
   security-analysis:
     name: Security Analysis
     runs-on: ubuntu-latest
-    # The gcc:16.2 container, not ubuntu-latest + a PPA. This job used to apt-get install gcc-15
+    # The gcc:16.1.0 container, not ubuntu-latest + a PPA. This job used to apt-get install gcc-15
     # from ppa:ubuntu-toolchain-r/test with an `|| exit 1` fallback that only printed "using
     # container approach instead" before failing - the PPA does not carry GCC 15 for the runner
     # image, so the job failed on every run. The official container is where the other Linux
     # legs already get their compiler; use the same one.
     container:
-      image: gcc:16.2
+      image: gcc:16.1.0
       options: --user root
 
     steps:
@@ -460,7 +460,7 @@ jobs:
         echo "" >> docs/medical/README.md
         echo "## Supported Platforms" >> docs/medical/README.md
         echo "- Windows 10+ (MSVC 17.10+)" >> docs/medical/README.md
-        echo "- Linux (GCC 16.2+, Clang 20+)" >> docs/medical/README.md
+        echo "- Linux (GCC 16.1+, Clang 20+)" >> docs/medical/README.md
         echo "" >> docs/medical/README.md
         echo "## Example Devices" >> docs/medical/README.md
         echo "- Pulse Oximeter (Class B)" >> docs/medical/README.md
