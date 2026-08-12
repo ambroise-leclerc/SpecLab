@@ -142,7 +142,7 @@ jobs:
         
         ## Requirements
         - **Windows**: Windows 10+ with MSVC 17.10+ (Visual Studio 2022 v17.10+)
-        - **Linux**: Ubuntu 20.04+ with GCC 16+ or Clang 20+
+        - **Linux**: Ubuntu 20.04+ with GCC 16.2+ or Clang 20+
         - **CMake**: 4.0+ (required for C++23 `import std` support)
         
         ## Quick Start
@@ -262,7 +262,7 @@ jobs:
     name: Release Linux (x64)
     runs-on: ubuntu-24.04
     container:
-      image: gcc:16
+      image: gcc:16.2
       options: --user root
     
     steps:
@@ -379,7 +379,7 @@ jobs:
         
         ## 🛠️ Platform Support
         - **Windows 10+**: MSVC 17.10+ (Visual Studio 2022 v17.10+)
-        - **Linux**: GCC 16+ or Clang 20+
+        - **Linux**: GCC 16.2+ or Clang 20+
         - **CMake 4.0+**: Required for C++23 \`import std\` support
         
         ## 📦 Release Packages

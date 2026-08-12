@@ -75,7 +75,7 @@ jobs:
     name: Static Application Security Testing
     runs-on: ubuntu-latest
     container:
-      image: gcc:16
+      image: gcc:16.2
       options: --user root
     
     steps:
