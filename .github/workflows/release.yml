@@ -72,9 +72,27 @@ jobs:
       id: get_version
       run: |
         if [ "${{ github.ref_type }}" = "tag" ]; then
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          VERSION=${GITHUB_REF#refs/tags/}
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?)?$ ]]; then
+            echo "Invalid release tag: $VERSION" >&2
+            exit 1
+          fi
+          PROJECT_VERSION=${VERSION#v}
+          PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
-          echo "version=nightly-$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          VERSION=nightly-$(date +%Y%m%d)
+          PROJECT_VERSION=0.1.0
+        fi
+        PACKAGE_NAME="SpecLab-$VERSION-${{ matrix.platform }}-${{ matrix.arch }}"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
+        echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+        echo "PACKAGE_DIR=$GITHUB_WORKSPACE/$PACKAGE_NAME" >> "$GITHUB_ENV"
+        if [ "${{ matrix.platform }}" = "windows" ]; then
+          echo "ARCHIVE_NAME=$PACKAGE_NAME.zip" >> "$GITHUB_ENV"
+        else
+          echo "ARCHIVE_NAME=$PACKAGE_NAME.tar.gz" >> "$GITHUB_ENV"
         fi
       shell: bash
 
@@ -88,7 +106,8 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON `
           -DSPECLAB_BUILD_TESTS=OFF `
           -DSPECLAB_INSTALL_EXAMPLES=ON `
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }} `
+          -DSPECLAB_PROJECT_VERSION="$env:PROJECT_VERSION" `
+          -DCMAKE_INSTALL_PREFIX="$env:PACKAGE_DIR" `
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Configure Release Build (Linux)
@@ -102,7 +121,8 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }} \
+          -DSPECLAB_PROJECT_VERSION="$PROJECT_VERSION" \
+          -DCMAKE_INSTALL_PREFIX="$PACKAGE_DIR" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Build Release
@@ -126,7 +146,7 @@ jobs:
 
     - name: Create Release Documentation
       run: |
-        cd SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
+        cd "$PACKAGE_NAME"
         cat > README.md << 'EOF'
         # SpecLab Medical Device Testing Framework
         
@@ -184,7 +204,7 @@ jobs:
 
     - name: Create Medical Device Compliance Guide
       run: |
-        cd SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}
+        cd "$PACKAGE_NAME"
         mkdir -p docs/compliance
         cat > docs/compliance/IEC62304-Guide.md << 'EOF'
         # IEC 62304 Compliance Guide for SpecLab
@@ -228,24 +248,21 @@ jobs:
         };
         ```
         EOF
+      shell: bash
 
     - name: Package Release (Windows)
       if: matrix.platform == 'windows'
       run: |
-        Compress-Archive -Path "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}" -DestinationPath "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip"
+        Compress-Archive -Path $env:PACKAGE_NAME -DestinationPath $env:ARCHIVE_NAME
 
     - name: Package Release (Linux)
       if: matrix.platform == 'linux'
       run: |
-        tar -czf "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}"
+        tar -czf "$ARCHIVE_NAME" "$PACKAGE_NAME"
 
     - name: Generate Package Checksums
       run: |
-        if [ "${{ matrix.platform }}" = "windows" ]; then
-          Get-FileHash "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip" -Algorithm SHA256 | Out-File "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.zip.sha256"
-        else
-          sha256sum "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" > "SpecLab-${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz.sha256"
-        fi
+        sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
       shell: bash
 
     - name: Upload Release Package
@@ -286,10 +303,24 @@ jobs:
       id: get_version
       run: |
         if [ "${{ github.ref_type }}" = "tag" ]; then
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          VERSION=${GITHUB_REF#refs/tags/}
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?)?$ ]]; then
+            echo "Invalid release tag: $VERSION" >&2
+            exit 1
+          fi
+          PROJECT_VERSION=${VERSION#v}
+          PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
-          echo "version=nightly-$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          VERSION=nightly-$(date +%Y%m%d)
+          PROJECT_VERSION=0.1.0
         fi
+        PACKAGE_NAME="SpecLab-$VERSION-linux-x64"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
+        echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+        echo "PACKAGE_DIR=$GITHUB_WORKSPACE/$PACKAGE_NAME" >> "$GITHUB_ENV"
+        echo "ARCHIVE_NAME=$PACKAGE_NAME.tar.gz" >> "$GITHUB_ENV"
       shell: bash
 
     - name: Configure Release Build (Linux)
@@ -302,7 +333,8 @@ jobs:
           -DSPECLAB_BUILD_EXAMPLES=ON \
           -DSPECLAB_BUILD_TESTS=OFF \
           -DSPECLAB_INSTALL_EXAMPLES=ON \
-          -DCMAKE_INSTALL_PREFIX=SpecLab-${{ steps.get_version.outputs.version }}-linux-x64 \
+          -DSPECLAB_PROJECT_VERSION="$PROJECT_VERSION" \
+          -DCMAKE_INSTALL_PREFIX="$PACKAGE_DIR" \
           -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD="d0edc3af-4c50-42ea-a356-e2862fe7a444"
 
     - name: Build Release
@@ -319,11 +351,11 @@ jobs:
 
     - name: Package Release (Linux)
       run: |
-        tar -czf "SpecLab-${{ steps.get_version.outputs.version }}-linux-x64.tar.gz" "SpecLab-${{ steps.get_version.outputs.version }}-linux-x64"
+        tar -czf "$ARCHIVE_NAME" "$PACKAGE_NAME"
 
     - name: Generate Package Checksums
       run: |
-        sha256sum "SpecLab-${{ steps.get_version.outputs.version }}-linux-x64.tar.gz" > "SpecLab-${{ steps.get_version.outputs.version }}-linux-x64.tar.gz.sha256"
+        sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
 
     - name: Upload Release Package
       uses: actions/upload-artifact@v4
@@ -356,7 +388,11 @@ jobs:
       id: get_info
       run: |
         VERSION=${GITHUB_REF#refs/tags/}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?)?$ ]]; then
+          echo "Invalid release tag: $VERSION" >&2
+          exit 1
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         
         # Generate release notes
         cat > release-notes.md << EOF
@@ -456,7 +492,13 @@ jobs:
       id: get_version
       run: |
         VERSION=${GITHUB_REF#refs/tags/}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?)?$ ]]; then
+          echo "Invalid release tag: $VERSION" >&2
+          exit 1
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "PACKAGE_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
 
     - name: Create vcpkg package manifest
       run: |
@@ -464,7 +506,7 @@ jobs:
         cat > vcpkg-package/vcpkg.json << EOF
         {
           "name": "speclab",
-          "version": "${{ steps.get_version.outputs.version }}",
+          "version": "$PACKAGE_VERSION",
           "description": "Medical Device Testing Framework with IEC 62304, ISO 14971, and FDA 21 CFR Part 820 compliance",
           "homepage": "https://github.com/your-org/SpecLab",
           "documentation": "https://speclab-docs.example.com",
@@ -493,7 +535,7 @@ jobs:
         
         class SpecLabConan(ConanFile):
             name = "speclab"
-            version = "${{ steps.get_version.outputs.version }}"
+            version = "$PACKAGE_VERSION"
             description = "Medical Device Testing Framework"
             license = "MIT"
             url = "https://github.com/your-org/SpecLab"

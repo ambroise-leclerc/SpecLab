@@ -12,7 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(cmake/PreventInSourceBuilds.cmake)
 
-project(speclab VERSION 0.1.0 DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
+set(SPECLAB_PROJECT_VERSION "0.1.0" CACHE STRING "SpecLab project version")
+project(speclab VERSION ${SPECLAB_PROJECT_VERSION} DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
