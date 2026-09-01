@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Compact guidance for OpenCode sessions working in SpecLab. See `README.md`
+Compact, tool-neutral guidance for coding agents and contributors working in SpecLab. See `README.md`
 for the design narrative and usage examples; this file records only facts that
 are easy to get wrong or that contradict the docs.
 
@@ -114,3 +114,9 @@ framework-emitted, not tests you register.
   root `CMakeLists.txt` or they will not be compiled/exported.
 - `*.mod` is `.gitignore`'d (Fortran convention), but C++ module BMI files
   (`.ifc`, `.module.json`) are also ignored — don't commit them.
+
+## Repository guidance
+
+- `AGENTS.md` is the canonical shared instruction file. Keep tool-specific assistant settings local
+  and ignored; do not add a second repository instruction source.
+- Commit messages, PR descriptions, and code comments contain no assistant attribution.
