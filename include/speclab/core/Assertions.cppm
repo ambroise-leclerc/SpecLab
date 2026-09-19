@@ -287,21 +287,8 @@ export namespace speclab::core {
         }
     };
 
-    // Convenience macros for shorter syntax (optional)
-    #define ASSERT_TRUE(cond, ...) speclab::core::Assertions::assertTrue(cond, ##__VA_ARGS__)
-    #define ASSERT_FALSE(cond, ...) speclab::core::Assertions::assertFalse(cond, ##__VA_ARGS__)
-    #define ASSERT_EQ(exp, act, ...) speclab::core::Assertions::assertEqual(exp, act, ##__VA_ARGS__)
-    #define ASSERT_NE(unexp, act, ...) speclab::core::Assertions::assertNotEqual(unexp, act, ##__VA_ARGS__)
-    #define ASSERT_NULL(ptr, ...) speclab::core::Assertions::assertNull(ptr, ##__VA_ARGS__)
-    #define ASSERT_NOT_NULL(ptr, ...) speclab::core::Assertions::assertNotNull(ptr, ##__VA_ARGS__)
-    #define ASSERT_NEAR(exp, act, tol, ...) speclab::core::Assertions::assertNear(exp, act, tol, ##__VA_ARGS__)
-    #define ASSERT_THROWS(type, call, ...) speclab::core::Assertions::assertThrows<type>(call, ##__VA_ARGS__)
-    #define ASSERT_NO_THROW(call, ...) speclab::core::Assertions::assertNoThrow(call, ##__VA_ARGS__)
-    #define FAIL(...) speclab::core::Assertions::fail(__VA_ARGS__)
-    
-    // Medical device specific macros
-    #define ASSERT_SAFETY(cond, risk, ...) speclab::core::Assertions::assertSafety(cond, risk, ##__VA_ARGS__)
-    #define ASSERT_COMPLIANCE(cond, std, req, ...) speclab::core::Assertions::assertCompliance(cond, std, req, ##__VA_ARGS__)
-    #define ASSERT_PERFORMANCE(dur, max, op, ...) speclab::core::Assertions::assertPerformance(dur, max, op, ##__VA_ARGS__)
+    // No ASSERT_* / FAIL macros: a #define in a module interface unit is never exported, so the
+    // ones that used to sit here were unreachable through `import speclab;`. Call the
+    // Assertions:: functions directly - they capture std::source_location themselves.
 
 } // namespace speclab::core

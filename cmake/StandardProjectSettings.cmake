@@ -1,5 +1,6 @@
-# Set a default build type if none was specified
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+# Set a default build type if none was specified. Top-level only: as a dependency, SpecLab must not
+# write the consumer's CMAKE_BUILD_TYPE cache entry.
+if(PROJECT_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to 'RelWithDebInfo' as none was specified.")
   set(CMAKE_BUILD_TYPE
       RelWithDebInfo
@@ -14,8 +15,11 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
              "RelWithDebInfo")
 endif()
 
-# Generate compile_commands.json to make it easier to work with clang based tools
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "Generate compile_commands.json for clang based tools")
+# Generate compile_commands.json to make it easier to work with clang based tools. Top-level only:
+# a CACHE INTERNAL entry would overwrite the consumer's own choice.
+if(PROJECT_IS_TOP_LEVEL)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "Generate compile_commands.json for clang based tools")
+endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(ENABLE_IPO "Enable Interprocedural Optimization, aka Link Time Optimization (LTO)" OFF)
 

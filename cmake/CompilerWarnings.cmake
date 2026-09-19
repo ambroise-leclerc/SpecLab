@@ -2,8 +2,15 @@
 #
 # https://github.com/lefticus/cppbestpractices/blob/master/02-Use_the_Tools_Available.md
 
+# On by default only when SpecLab is the top-level project. As a dependency, a warning that a
+# newer compiler starts emitting in SpecLab's sources must not fail the consumer's build.
+# Prefixed so that it cannot pick up (or be set by) a consumer's own WARNINGS_AS_ERRORS.
+#
+# Declared at file scope, not inside set_project_warnings(): StaticAnalyzers.cmake reads it at
+# include time, before that function runs, and must see the same value as the compiler flags.
+option(SPECLAB_WARNINGS_AS_ERRORS "Treat compiler and analyzer warnings as errors in SpecLab" ${PROJECT_IS_TOP_LEVEL})
+
 function(set_project_warnings project_name)
-  option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
   option(WARNINGS_CUDA "Adapt warnings for CUDA" OFF)
 
   set(MSVC_WARNINGS
@@ -59,7 +66,7 @@ function(set_project_warnings project_name)
   endif()
 
 
-  if(WARNINGS_AS_ERRORS)
+  if(SPECLAB_WARNINGS_AS_ERRORS)
     set(CLANG_WARNINGS ${CLANG_WARNINGS} -Werror)
     set(MSVC_WARNINGS ${MSVC_WARNINGS} /WX)
   endif()

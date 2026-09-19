@@ -103,11 +103,11 @@ SpecLab::Requirement("SRS-003", "ECG processing shall complete within 100ms")
 
 ### Prerequisites
 
-- **CMake 4.0+** (required for C++23 `import std` support)
+- **CMake 4.0–4.4** (required for C++23 `import std` support; each series has its own experimental gate, and newer series are refused until qualified)
 - **C++23 Compatible Compiler**:
   - MSVC 17.14+ (Visual Studio 2022 17.10+)
   - GCC 16.1+ (GCC 15 cannot build this project — see issue #9)
-  - Clang 20.0+ (experimental)
+  - Clang 20.0+ with libc++ (CI: Clang 21, via `--toolchain cmake/toolchains/linux-clang21-libcxx.cmake`)
 
 ### Build Instructions
 
