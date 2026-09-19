@@ -60,8 +60,36 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "20.0")
         message(FATAL_ERROR "Clang 20 or later is required for C++23 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
     endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    # Refused outright rather than warned about: AppleClang does not provide the `import std`
+    # module surface this build needs, so a warning here only postpones the failure to hundreds of
+    # "module 'std' not found" errors that do not name the cause.
+    message(FATAL_ERROR
+        "AppleClang is not supported: it does not provide the C++23 `import std` module this build "
+        "needs. On macOS use upstream LLVM/Clang with libc++: "
+        "--toolchain cmake/toolchains/macos-arm64-llvm.cmake (brew install llvm@21).")
 else()
     message(WARNING "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. SpecLab requires MSVC 17.14+, GCC 16.1+, or Clang 20+ for C++23 modules support.")
+endif()
+
+# macOS: the configuration MduX verified in its ADR-013, and that SpecLab's CI builds, is Apple
+# Silicon with upstream LLVM/Clang 21.1.8 and libc++. Intel Macs and GCC on macOS have never built
+# this tree, so they are refused rather than left to fail somewhere less legible. Another upstream
+# Clang is allowed (the floor above still applies) but flagged as unverified.
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+        message(FATAL_ERROR "SpecLab supports macOS on Apple Silicon (arm64) only; target processor is ${CMAKE_SYSTEM_PROCESSOR}.")
+    endif()
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR
+            "SpecLab on macOS requires upstream LLVM/Clang with libc++ "
+            "(--toolchain cmake/toolchains/macos-arm64-llvm.cmake); found ${CMAKE_CXX_COMPILER_ID}.")
+    endif()
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL "21.1.8")
+        message(WARNING
+            "SpecLab's verified macOS compiler is upstream Clang 21.1.8 (what CI and MduX use); "
+            "found ${CMAKE_CXX_COMPILER_VERSION}. This combination is not tested.")
+    endif()
 endif()
 
 # Check whether this compiler, under this CMake and generator, can provide `import std`.

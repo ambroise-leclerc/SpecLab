@@ -15,8 +15,9 @@ are easy to get wrong or that contradict the docs.
   **GCC 16.2.0 is not usable either** (issue #17: it corrupts this tree's module
   BMIs); CI pins `gcc:16.1.0`.
 - CI legs (`.github/workflows/ci.yml`): GCC 16.1.0 × CMake 4.1.1 / 4.3.1 / 4.4.2,
-  Clang 21 + libc++ × CMake 4.3.1, MSVC on `windows-2022` (x64, x86) and
-  `windows-latest` (x64). These mirror what MduX, the main consumer, builds with.
+  Clang 21 + libc++ × CMake 4.3.1, macOS 15 arm64 with Clang 21.1.8 + libc++ × CMake 4.3.1,
+  and MSVC on `windows-2022` (x64, x86) and `windows-latest` (x64). These mirror what MduX,
+  the main consumer, builds with.
 - Default build type is `RelWithDebInfo` (set in `cmake/StandardProjectSettings.cmake`,
   only when SpecLab is the top-level project).
 - `import std` is uniform across compilers — there is no per-compiler path and no
@@ -43,6 +44,11 @@ are easy to get wrong or that contradict the docs.
     `libc++-21-dev`, `libc++abi-21-dev` from apt.llvm.org; override the root with
     `SPECLAB_LLVM_ROOT`). The toolchain file selects `-stdlib=libc++` and points
     `CMAKE_CXX_STDLIB_MODULES_JSON` at `libc++.modules.json`. Same setup MduX uses.
+  - **macOS**: Apple Silicon only, with upstream LLVM/Clang (Homebrew `llvm@21`, verified
+    21.1.8) and libc++: `--toolchain cmake/toolchains/macos-arm64-llvm.cmake`
+    (`SPECLAB_LLVM_ROOT` overrides the LLVM root). This is MduX's ADR-013 configuration.
+    **AppleClang is refused** by `CMakeLists.txt` because it has no `import std` module surface.
+    Intel Macs and GCC on macOS are refused too, and another upstream Clang only gets a warning.
 
 ## Consumers (MduX and others)
 

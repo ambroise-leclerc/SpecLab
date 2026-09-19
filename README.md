@@ -108,6 +108,7 @@ SpecLab::Requirement("SRS-003", "ECG processing shall complete within 100ms")
   - MSVC 17.14+ (Visual Studio 2022 17.10+)
   - GCC 16.1+ (GCC 15 cannot build this project — see issue #9)
   - Clang 20.0+ with libc++ (CI: Clang 21, via `--toolchain cmake/toolchains/linux-clang21-libcxx.cmake`)
+  - macOS: Apple Silicon with upstream LLVM/Clang 21.1.8 and libc++ (`brew install llvm@21`, then `--toolchain cmake/toolchains/macos-arm64-llvm.cmake`). AppleClang is not supported.
 
 ### Build Instructions
 
