@@ -48,7 +48,10 @@ are easy to get wrong or that contradict the docs.
     21.1.8) and libc++: `--toolchain cmake/toolchains/macos-arm64-llvm.cmake`
     (`SPECLAB_LLVM_ROOT` overrides the LLVM root). This is MduX's ADR-013 configuration.
     **AppleClang is refused** by `CMakeLists.txt` because it has no `import std` module surface.
-    Intel Macs and GCC on macOS are refused too, and another upstream Clang only gets a warning.
+    GCC on macOS is refused too, and so is any macOS target architecture other than arm64. The
+    architecture check reads `CMAKE_OSX_ARCHITECTURES`, falling back to the processor when it is
+    empty, so x86_64 and universal `arm64;x86_64` builds are rejected even on an Apple Silicon
+    host. Another upstream Clang only gets a warning.
 
 ## Consumers (MduX and others)
 

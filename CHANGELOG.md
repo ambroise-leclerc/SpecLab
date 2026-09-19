@@ -14,9 +14,14 @@ happened once, to v0.1.0 (see below).
   LLVM/Clang 21.1.8 with libc++ (Homebrew `llvm@21`), through
   `cmake/toolchains/macos-arm64-llvm.cmake`, and a `macos-15` arm64 CI job.
 - AppleClang is now refused at configure time with a message pointing to that toolchain. It used
-  to get only a warning and then fail later on a missing `std` module. On macOS, Intel and non-Clang
-  compilers are refused as well, and an upstream Clang other than 21.1.8 gets a warning that it is
-  untested.
+  to get only a warning and then fail later on a missing `std` module. On macOS, these are refused as
+  well:
+  - any target architecture other than arm64, checked against `CMAKE_OSX_ARCHITECTURES` (so
+    x86_64 and universal `arm64;x86_64` builds are refused), or against the processor when that
+    list is empty;
+  - non-Clang compilers.
+
+  An upstream Clang other than 21.1.8 gets a warning that it is untested.
 
 ### Changed
 - README rewritten against the actual API. Every code example is compiled with

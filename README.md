@@ -45,7 +45,8 @@ Unsupported, and refused at configure time:
 - **GCC 15** fails on libstdc++'s `std` module ([#9](https://github.com/ambroise-leclerc/SpecLab/issues/9)).
 - **GCC 16.2.0** corrupts this tree's module BMIs ([#17](https://github.com/ambroise-leclerc/SpecLab/issues/17)). GCC 16.2.0 is not refused at configure time: its build fails.
 - **AppleClang** has no `import std` module.
-- **Intel Macs** have never been tested.
+- **macOS x86_64 or universal (`arm64;x86_64`) targets** have never been tested. The check uses
+  `CMAKE_OSX_ARCHITECTURES` when it is set.
 - **CMake 4.5+** is refused until its `import std` gate has been qualified.
 
 Clang needs libc++, because libc++ is the standard library whose `std` module CMake knows how to

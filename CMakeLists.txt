@@ -77,9 +77,22 @@ endif()
 # this tree, so they are refused rather than left to fail somewhere less legible. Another upstream
 # Clang is allowed (the floor above still applies) but flagged as unverified.
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
-        message(FATAL_ERROR "SpecLab supports macOS on Apple Silicon (arm64) only; target processor is ${CMAKE_SYSTEM_PROCESSOR}.")
+    # The macOS target architectures are CMAKE_OSX_ARCHITECTURES when set; CMAKE_SYSTEM_PROCESSOR
+    # describes the host and only stands for the target when that list is empty. Checking the
+    # processor alone would let an Apple Silicon host build for x86_64, or a universal
+    # "arm64;x86_64" binary, past this guard. Every listed architecture must be arm64.
+    if(CMAKE_OSX_ARCHITECTURES)
+        set(_speclab_macos_archs ${CMAKE_OSX_ARCHITECTURES})
+    else()
+        set(_speclab_macos_archs ${CMAKE_SYSTEM_PROCESSOR})
     endif()
+    foreach(_speclab_macos_arch IN LISTS _speclab_macos_archs)
+        if(NOT _speclab_macos_arch MATCHES "^(arm64|aarch64)$")
+            message(FATAL_ERROR
+                "SpecLab supports macOS on Apple Silicon (arm64) only; the target architectures are "
+                "'${_speclab_macos_archs}'. Universal and x86_64 builds are not supported.")
+        endif()
+    endforeach()
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         message(FATAL_ERROR
             "SpecLab on macOS requires upstream LLVM/Clang with libc++ "
