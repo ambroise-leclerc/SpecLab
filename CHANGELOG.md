@@ -9,6 +9,29 @@ happened once, to v0.1.0 (see below).
 
 ## [0.1.2] - 2026-09-19
 
+### Added
+- macOS support on Apple Silicon, in the configuration MduX verified in its ADR-013: upstream
+  LLVM/Clang 21.1.8 with libc++ (Homebrew `llvm@21`), through
+  `cmake/toolchains/macos-arm64-llvm.cmake`, and a `macos-15` arm64 CI job.
+- AppleClang is now refused at configure time with a message pointing to that toolchain. It used
+  to get only a warning and then fail later on a missing `std` module. On macOS, these are refused as
+  well:
+  - any target architecture other than arm64, checked against `CMAKE_OSX_ARCHITECTURES` (so
+    x86_64 and universal `arm64;x86_64` builds are refused), or against the processor when that
+    list is empty;
+  - non-Clang compilers.
+
+  An upstream Clang other than 21.1.8 gets a warning that it is untested.
+
+### Changed
+- README rewritten against the actual API. Every code example is compiled with
+  `-Wall -Wextra -Werror` and run before publication. It has per-platform CI badges, a supported
+  platforms table, the real CMake options and target name (`speclab::speclab`), consumption with
+  FetchContent pinned by SHA, and a "Current limitations" section. Examples of APIs that do not
+  exist (`Assert::…`, `.Parameters(…)`, `.TraceabilityMatrix(…)`) are gone. The
+  `Requirement`/`Feature`/`IEC62304Process` builders are documented as metadata-only, since their
+  `Execute()` runs no test.
+
 ### Fixed
 - Sanitizer builds of consumers that do `import speclab;`. v0.1.1 compiled SpecLab with
   `-fsanitize=...` but no longer passed that flag to consumers. With GCC 16, a translation unit

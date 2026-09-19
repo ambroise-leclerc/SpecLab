@@ -352,12 +352,76 @@ jobs:
         ./pulse_oximeter_example
 
   # ============================================================================
+  # macOS Apple Silicon (upstream Clang 21.1.8 + libc++)
+  #
+  # The configuration MduX verified for macOS (its ADR-013) and builds SpecLab with: arm64, upstream
+  # LLVM/Clang 21.1.8 from Homebrew's llvm@21, libc++, CMake 4.3.1, Ninja. AppleClang is refused by
+  # CMakeLists.txt because it has no `import std` module surface.
+  # ============================================================================
+  macos-arm64:
+    name: macOS 15 arm64 (Clang 21.1.8, libc++)
+    # Explicitly the arm64 image; macos-latest can change architecture and toolchain independently
+    # of this verified target.
+    runs-on: macos-15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        fetch-depth: 0
+        # No step pushes or otherwise authenticates to git; do not leave the token in .git/config.
+        persist-credentials: false
+
+    - name: Install CMake 4.3.1
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
+      with:
+        cmakeVersion: "4.3.1"
+
+    - name: Install upstream LLVM 21 and verify the exact version
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(uname -m)" = "arm64"
+        brew install llvm@21 ninja
+        llvm_root="$(brew --prefix llvm@21)"
+        "$llvm_root/bin/clang++" --version
+        version="$("$llvm_root/bin/clang++" --version | sed -n 's/.*clang version \([0-9.]*\).*/\1/p' | head -1)"
+        if [ "$version" != "21.1.8" ]; then
+          echo "::error::llvm@21 provides clang ${version}; the verified macOS compiler is 21.1.8."
+          exit 1
+        fi
+        echo "SPECLAB_LLVM_ROOT=$llvm_root" >> "$GITHUB_ENV"
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -G Ninja \
+          --toolchain cmake/toolchains/macos-arm64-llvm.cmake \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DENABLE_CACHE=OFF \
+          -DSPECLAB_BUILD_EXAMPLES=ON \
+          -DSPECLAB_BUILD_TESTS=OFF
+
+    - name: Build SpecLab
+      run: cmake --build build --parallel
+
+    - name: Run basic example
+      run: |
+        cd build/examples
+        ./basic_example
+
+    - name: Run pulse oximeter example
+      run: |
+        cd build/examples
+        ./pulse_oximeter_example
+
+  # ============================================================================
   # Medical Device Compliance Validation
   # ============================================================================
   medical-compliance:
     name: Medical Device Compliance Validation
     runs-on: windows-2022
-    needs: [windows-msvc, linux-gcc, linux-clang]
+    needs: [windows-msvc, linux-gcc, linux-clang, macos-arm64]
     
     steps:
     - name: Checkout code
@@ -391,6 +455,7 @@ jobs:
         echo "- ✅ Windows MSVC (Primary platform)" >> iec62304-compliance.md
         echo "- ✅ Linux GCC (Development platform)" >> iec62304-compliance.md
         echo "- ✅ Linux Clang 21 + libc++" >> iec62304-compliance.md
+        echo "- ✅ macOS Apple Silicon, Clang 21.1.8 + libc++" >> iec62304-compliance.md
         echo "" >> iec62304-compliance.md
         echo "## Standards Compliance" >> iec62304-compliance.md
         echo "- IEC 62304: Medical device software lifecycle processes" >> iec62304-compliance.md
