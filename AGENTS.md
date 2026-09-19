@@ -14,7 +14,7 @@ are easy to get wrong or that contradict the docs.
   second-level BMI, so `speclab.runners.testrunner` fails to compile.
   **GCC 16.2.0 is not usable either** (issue #17: it corrupts this tree's module
   BMIs); CI pins `gcc:16.1.0`.
-- CI legs (`.github/workflows/ci.yml`): GCC 16.1.0 × CMake 4.1.1 / 4.3.1 / 4.4.3,
+- CI legs (`.github/workflows/ci.yml`): GCC 16.1.0 × CMake 4.1.1 / 4.3.1 / 4.4.2,
   Clang 21 + libc++ × CMake 4.3.1, MSVC on `windows-2022` (x64, x86) and
   `windows-latest` (x64). These mirror what MduX, the main consumer, builds with.
 - Default build type is `RelWithDebInfo` (set in `cmake/StandardProjectSettings.cmake`,

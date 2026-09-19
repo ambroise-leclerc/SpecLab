@@ -28,7 +28,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(cmake/PreventInSourceBuilds.cmake)
 
-set(SPECLAB_PROJECT_VERSION "0.1.0" CACHE STRING "SpecLab project version")
+# A cache entry only when SpecLab is the top-level project (the release workflow sets it with -D).
+# As a subproject, a CACHE entry would land in the consumer's cache; a plain variable is scoped
+# to this directory, and a consumer can still preset SPECLAB_PROJECT_VERSION. PROJECT_IS_TOP_LEVEL
+# is not available yet - it is set by project(), which needs this value.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(SPECLAB_PROJECT_VERSION "0.1.0" CACHE STRING "SpecLab project version")
+elseif(NOT DEFINED SPECLAB_PROJECT_VERSION)
+    set(SPECLAB_PROJECT_VERSION "0.1.0")
+endif()
 project(speclab VERSION ${SPECLAB_PROJECT_VERSION} DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
 
 message(STATUS "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD: ${CMAKE_EXPERIMENTAL_CXX_IMPORT_STD}")
@@ -120,13 +128,13 @@ endif()
 # built inside MduX was silently configured by MduX's helpers, which is how MduX's
 # configure_medical_compliance() came to stamp MDUX_VERSION_*=0.1.0 onto MduX's own test targets.
 set(SPECLAB_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(${SPECLAB_CMAKE_DIR}/StandardProjectSettings.cmake)
-include(${SPECLAB_CMAKE_DIR}/Cache.cmake)
-include(${SPECLAB_CMAKE_DIR}/CompilerSettings.cmake)
-include(${SPECLAB_CMAKE_DIR}/Linker.cmake)
-include(${SPECLAB_CMAKE_DIR}/CompilerWarnings.cmake)
-include(${SPECLAB_CMAKE_DIR}/Sanitizers.cmake)
-include(${SPECLAB_CMAKE_DIR}/StaticAnalyzers.cmake)
+include("${SPECLAB_CMAKE_DIR}/StandardProjectSettings.cmake")
+include("${SPECLAB_CMAKE_DIR}/Cache.cmake")
+include("${SPECLAB_CMAKE_DIR}/CompilerSettings.cmake")
+include("${SPECLAB_CMAKE_DIR}/Linker.cmake")
+include("${SPECLAB_CMAKE_DIR}/CompilerWarnings.cmake")
+include("${SPECLAB_CMAKE_DIR}/Sanitizers.cmake")
+include("${SPECLAB_CMAKE_DIR}/StaticAnalyzers.cmake")
 
 
 
