@@ -2,8 +2,9 @@
 #
 # - Coverage: `--coverage -O0 -g` is how SpecLab itself is built, so it goes on `options_target`
 #   (speclab_options, linked privately). Only the link flag is required downstream, because an
-#   instrumented libspeclab.a references __gcov_* symbols. It goes on `library_target`'s exported
-#   INTERFACE.
+#   instrumented libspeclab.a references __gcov_* symbols. It is PUBLIC on `library_target`: in
+#   the exported interface for consumers, and on speclab's own link step when it is built as a
+#   shared library (add_library(speclab) follows BUILD_SHARED_LIBS).
 #
 # - Sanitizers: -fsanitize=... is required downstream for *both* compiling and linking, so it is
 #   PUBLIC on `library_target`. That covers SpecLab's own sources, and consumers in the build tree
@@ -22,7 +23,7 @@ function(enable_sanitizers options_target library_target)
 
     if(ENABLE_COVERAGE)
       target_compile_options(${options_target} INTERFACE --coverage -O0 -g)
-      target_link_options(${library_target} INTERFACE --coverage)
+      target_link_options(${library_target} PUBLIC --coverage)
     endif()
 
     set(SANITIZERS "")
@@ -77,7 +78,7 @@ function(enable_sanitizers options_target library_target)
        STREQUAL
        "")
       target_compile_options(${library_target} PUBLIC -fsanitize=${LIST_OF_SANITIZERS})
-      target_link_options(${library_target} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      target_link_options(${library_target} PUBLIC -fsanitize=${LIST_OF_SANITIZERS})
     endif()
   endif()
 
