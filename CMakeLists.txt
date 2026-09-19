@@ -169,7 +169,7 @@ configure_speclab_version(speclab_options ${PROJECT_VERSION_MAJOR} ${PROJECT_VER
 configure_linker(speclab_options)
 set_project_warnings(speclab_warnings)
 
-enable_sanitizers(speclab_options)
+enable_sanitizers(speclab_options speclab)
 
 # Set target properties
 target_include_directories(speclab PUBLIC
@@ -199,11 +199,11 @@ target_compile_features(speclab PUBLIC cxx_std_23)
 # which silently overrode the version of MduX, the main consumer, in every one of its test
 # translation units.
 #
-# Linking them PRIVATE is not enough on its own: speclab is a static library, so a PRIVATE
-# dependency is still recorded as $<LINK_ONLY:...> in its interface. That keeps compile
-# options and definitions out, while link options still propagate - which is what a sanitizer
-# or coverage build needs (-fsanitize=... must reach the final link). $<BUILD_INTERFACE:...>
-# keeps these helper targets out of the installed export set.
+# Linking them PRIVATE keeps compile options and definitions out of consumers, and
+# $<BUILD_INTERFACE:...> keeps these helper targets out of the installed export set. The one
+# thing consumers do need - the link flags of an instrumented build (-fsanitize=..., --coverage)
+# - is not carried here: enable_sanitizers() puts it on speclab's own INTERFACE, which is
+# exported, so it also reaches consumers of the installed package.
 target_link_libraries(speclab PRIVATE
     $<BUILD_INTERFACE:speclab_options>
     $<BUILD_INTERFACE:speclab_warnings>

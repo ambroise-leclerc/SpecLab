@@ -1,11 +1,18 @@
-function(enable_sanitizers project_name)
+# Instrumentation is split across two targets because it has two kinds of requirement:
+#   - compile flags (-fsanitize=..., --coverage) belong to how SpecLab itself is built, so they go
+#     on `options_target` (speclab_options, linked privately and kept out of consumers);
+#   - the matching link flags are a requirement of the *resulting library*: an instrumented
+#     libspeclab.a references __asan_*/__gcov_* symbols, and every executable that links it must
+#     pull in those runtimes. They go on `library_target`'s INTERFACE, which is exported, so they
+#     reach consumers in the build tree and through find_package(speclab) alike.
+function(enable_sanitizers options_target library_target)
 
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
     option(ENABLE_COVERAGE "Enable coverage reporting for gcc/clang" OFF)
 
     if(ENABLE_COVERAGE)
-      target_compile_options(${project_name} INTERFACE --coverage -O0 -g)
-      target_link_libraries(${project_name} INTERFACE --coverage)
+      target_compile_options(${options_target} INTERFACE --coverage -O0 -g)
+      target_link_options(${library_target} INTERFACE --coverage)
     endif()
 
     set(SANITIZERS "")
@@ -59,8 +66,8 @@ function(enable_sanitizers project_name)
        "${LIST_OF_SANITIZERS}"
        STREQUAL
        "")
-      target_compile_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
-      target_link_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      target_compile_options(${options_target} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      target_link_options(${library_target} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
     endif()
   endif()
 

@@ -49,9 +49,14 @@ are easy to get wrong or that contradict the docs.
 - `speclab_options` and `speclab_warnings` are linked **privately** (and wrapped in
   `$<BUILD_INTERFACE:>`), so nothing from SpecLab's build — warnings, `-Werror`,
   `/permissive-`, `NOMINMAX`, `SPECLAB_*` definitions — reaches a target that
-  links `speclab::speclab`. Only link options (e.g. `-fsanitize=`) still propagate,
-  through `$<LINK_ONLY:>`, which a sanitizer build needs. Keep it that way: a
-  `PUBLIC` link here once injected `MDUX_VERSION_*=0.1.0` into every MduX test TU.
+  links `speclab::speclab`. Keep it that way: a `PUBLIC` link here once injected
+  `MDUX_VERSION_*=0.1.0` into every MduX test TU.
+- The exception is the link flags of an instrumented build (`-fsanitize=…`,
+  `--coverage`): `enable_sanitizers(speclab_options speclab)` puts the compile
+  flags on `speclab_options` and the link flags on `speclab`'s exported
+  INTERFACE, because an instrumented `libspeclab.a` cannot link without its
+  runtime. Do not route them through `speclab_options`: `BUILD_INTERFACE` would
+  drop them from the installed package (`undefined reference to __asan_*`).
 - In-tree targets (examples, tests) opt in explicitly by linking
   `speclab_options speclab_warnings`.
 - `SPECLAB_WARNINGS_AS_ERRORS` defaults to `PROJECT_IS_TOP_LEVEL`: `-Werror` in
