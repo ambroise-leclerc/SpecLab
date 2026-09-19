@@ -202,6 +202,7 @@ target_sources(speclab
         include/speclab/reporters/Reporter.cppm
         include/speclab/reporters/ConsoleReporter.cppm
         include/speclab/runners/TestRunner.cppm
+        include/speclab/runners/Discovery.cppm
         include/speclab/SpecLab.cppm
 )
 # Configuration application
@@ -253,14 +254,16 @@ target_link_libraries(speclab PRIVATE
 
 # Build options
 option(SPECLAB_BUILD_EXAMPLES "Build SpecLab examples" ON)
-option(SPECLAB_BUILD_TESTS "Build SpecLab tests" ON)
+# The self-tests are on by default only when SpecLab is the top-level project, so a consumer that
+# adds SpecLab as a subproject does not build and register them unless it asks for them.
+option(SPECLAB_BUILD_TESTS "Build SpecLab's self-tests and register them with CTest" ${PROJECT_IS_TOP_LEVEL})
 
 # Add subdirectories
 if(SPECLAB_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(SPECLAB_BUILD_TESTS AND FALSE)  # Temporarily disabled until APIs are fully implemented
+if(SPECLAB_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

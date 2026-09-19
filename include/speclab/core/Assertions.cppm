@@ -26,9 +26,22 @@ export namespace speclab::core {
             return location_;
         }
         
+        /**
+         * @brief "file:line:column", with the file reduced to its name
+         *
+         * A source_location carries the absolute path the compiler was given, which differs
+         * between machines and build trees for the same failure. Reporting only the file name keeps
+         * failure messages identical wherever they are produced; location() still has the full path.
+         */
         std::string formatLocation() const {
-            return std::format("{}:{}:{}", location_.file_name(), 
+            return std::format("{}:{}:{}", fileName(location_.file_name()),
                              location_.line(), location_.column());
+        }
+
+        /// The last path component of `path`, for either separator.
+        [[nodiscard]] static std::string_view fileName(std::string_view path) noexcept {
+            const std::size_t slash = path.find_last_of("/\\");
+            return slash == std::string_view::npos ? path : path.substr(slash + 1);
         }
         
     private:
@@ -48,6 +61,41 @@ export namespace speclab::core {
         
         AssertionContext(std::string_view id, std::string_view component = "")
             : testId(id), deviceComponent(component) {}
+    };
+
+    /**
+     * @brief An integer type std::cmp_equal accepts: a standard or extended integer type
+     *
+     * That excludes bool and the character types (char, wchar_t, char8_t, char16_t, char32_t),
+     * which std::cmp_equal rejects with a static_assert. Those are compared with == instead.
+     * signed char and unsigned char are integer types and stay in.
+     */
+    template<typename T>
+    concept Integer = std::integral<T>
+                   && !std::same_as<std::remove_cv_t<T>, bool>
+                   && !std::same_as<std::remove_cv_t<T>, char>
+                   && !std::same_as<std::remove_cv_t<T>, wchar_t>
+                   && !std::same_as<std::remove_cv_t<T>, char8_t>
+                   && !std::same_as<std::remove_cv_t<T>, char16_t>
+                   && !std::same_as<std::remove_cv_t<T>, char32_t>;
+
+    /**
+     * @brief A compile-time-checked format string plus the caller's source location
+     *
+     * A function cannot take both a variadic argument pack and a defaulted std::source_location
+     * after it, so the location is captured by this parameter's consteval constructor instead:
+     * `require(cond, "value {}", v)` records the line of the `require` call.
+     */
+    template<typename... Args>
+    struct FormatWithLocation {
+        std::format_string<Args...> format;
+        std::source_location location;
+
+        template<typename String>
+            requires std::convertible_to<const String&, std::string_view>
+        consteval FormatWithLocation(const String& text,  // NOLINT(google-explicit-constructor)
+                                     std::source_location where = std::source_location::current())
+            : format(text), location(where) {}
     };
 
     /**
@@ -85,19 +133,25 @@ export namespace speclab::core {
         
         /**
          * @brief Assert that two values are equal
-         * @tparam T Type of values to compare
+         *
+         * The two values may have different types, as long as they can be compared: an `int`
+         * literal against a `std::size_t`, a string literal against a `std::string`. Two integers
+         * are compared with std::cmp_equal, so a negative value never equals a large unsigned one
+         * and no sign-conversion warning is emitted in the caller's build.
+         *
          * @param expected Expected value
          * @param actual Actual value
          * @param message Custom failure message
          * @param loc Source location (auto-captured)
          */
-        template<typename T>
-        static void assertEqual(const T& expected, const T& actual, 
+        template<typename E, typename A>
+            requires std::equality_comparable_with<const E&, const A&> || (Integer<E> && Integer<A>)
+        static void assertEqual(const E& expected, const A& actual,
                               std::string_view message = "",
                               std::source_location loc = std::source_location::current()) {
-            if (!(expected == actual)) {
+            if (!valuesEqual(expected, actual)) {
                 std::string fullMessage;
-                if constexpr (requires { std::format("{}", expected); }) {
+                if constexpr (std::formattable<E, char> && std::formattable<A, char>) {
                     fullMessage = std::format("assertEqual failed: expected '{}', got '{}'. {}", 
                                             expected, actual, message);
                 } else {
@@ -108,20 +162,20 @@ export namespace speclab::core {
         }
         
         /**
-         * @brief Assert that two values are not equal
-         * @tparam T Type of values to compare
+         * @brief Assert that two values are not equal (the types may differ, as for assertEqual)
          * @param unexpected Value that should not match
          * @param actual Actual value
          * @param message Custom failure message
          * @param loc Source location (auto-captured)
          */
-        template<typename T>
-        static void assertNotEqual(const T& unexpected, const T& actual, 
+        template<typename U, typename A>
+            requires std::equality_comparable_with<const U&, const A&> || (Integer<U> && Integer<A>)
+        static void assertNotEqual(const U& unexpected, const A& actual,
                                  std::string_view message = "",
                                  std::source_location loc = std::source_location::current()) {
-            if (unexpected == actual) {
+            if (valuesEqual(unexpected, actual)) {
                 std::string fullMessage;
-                if constexpr (requires { std::format("{}", unexpected); }) {
+                if constexpr (std::formattable<U, char>) {
                     fullMessage = std::format("assertNotEqual failed: values are equal '{}'. {}", 
                                             unexpected, message);
                 } else {
@@ -131,6 +185,23 @@ export namespace speclab::core {
             }
         }
         
+        /**
+         * @brief Assert `condition`, with a std::format message built only when it fails
+         *
+         *     Assertions::require(diagnostics.size() == 1, "expected 1 diagnostic, got {}", diagnostics.size());
+         *
+         * The format string is checked at compile time and the caller's source location is
+         * captured, so this replaces `if (!c) throw AssertionFailure(std::format(...), current())`.
+         */
+        template<typename... Args>
+        static void require(bool condition, FormatWithLocation<std::type_identity_t<Args>...> message,
+                            Args&&... args) {
+            if (!condition) {
+                throw AssertionFailure(std::format(message.format, std::forward<Args>(args)...),
+                                       message.location);
+            }
+        }
+
         /**
          * @brief Assert that pointer is null
          * @param ptr Pointer to check
@@ -285,6 +356,58 @@ export namespace speclab::core {
                                                   operation, durationMs, maxMs), loc);
             }
         }
+
+    private:
+        template<typename L, typename R>
+        static constexpr bool valuesEqual(const L& lhs, const R& rhs) {
+            if constexpr (Integer<L> && Integer<R>) {
+                return std::cmp_equal(lhs, rhs);
+            } else {
+                return lhs == rhs;
+            }
+        }
+    };
+
+    /**
+     * @brief Collects several failed expectations and reports them together
+     *
+     * Assertions throw, so the first failure inside a step ends the test. That is right for a step
+     * making one claim, and wrong for one checking six properties: Checks reports every one that
+     * failed in a single AssertionFailure, so they can all be fixed in one pass.
+     *
+     *     Checks checks;
+     *     checks.expect(vertex.x == 4, "x");
+     *     checks.expect(vertex.y == 8, "y");
+     *     checks.raise();   // throws only if something failed, naming each failure
+     */
+    class Checks {
+    public:
+        /// Records `condition`. `what` names the thing being checked, not the operator.
+        void expect(bool condition, std::string_view what,
+                    std::source_location where = std::source_location::current()) {
+            if (!condition) {
+                failures_.push_back(std::format("{} ({}:{})", what,
+                                                AssertionFailure::fileName(where.file_name()),
+                                                where.line()));
+            }
+        }
+
+        /// Throws one AssertionFailure listing every failed expectation, or returns if none failed.
+        void raise(std::source_location where = std::source_location::current()) const {
+            if (failures_.empty()) {
+                return;
+            }
+            std::string message = std::format("{} expectation(s) failed:", failures_.size());
+            for (const std::string& failure : failures_) {
+                message += "\n    - " + failure;
+            }
+            throw AssertionFailure(message, where);
+        }
+
+        [[nodiscard]] bool anyFailed() const noexcept { return !failures_.empty(); }
+
+    private:
+        std::vector<std::string> failures_;
     };
 
     // No ASSERT_* / FAIL macros: a #define in a module interface unit is never exported, so the

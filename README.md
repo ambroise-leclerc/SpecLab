@@ -79,11 +79,19 @@ int main() {
 
 `Execute()` returns a `speclab::core::TestResult`. A failed assertion throws
 `speclab::core::AssertionFailure`, which gives a `Failed` status with the message and source
-location. Any other exception gives an `Error` status. The assertions are in
-`speclab::core::Assertions`: `assertTrue`, `assertFalse`, `assertEqual`, `assertNotEqual`,
-`assertNear`, `assertNull`, `assertNotNull`, `assertThrows`, `assertNoThrow`, `fail`, and the
-medical-device ones `assertSafety`, `assertCompliance` and `assertPerformance`. Each one captures
-its `std::source_location`.
+location. The location is reported by file name only (`file.cpp:line:column`), so messages are
+identical on every machine. Any other exception gives an `Error` status.
+
+The assertions are in `speclab::core::Assertions`, and each one captures its `std::source_location`:
+- general: `assertTrue`, `assertFalse`, `assertEqual`, `assertNotEqual`, `assertNear`, `assertNull`,
+  `assertNotNull`, `assertThrows`, `assertNoThrow`, `fail`;
+- medical-device: `assertSafety`, `assertCompliance`, `assertPerformance`;
+- `require(condition, "format {}", args…)`, which formats its message only when it fails.
+
+`assertEqual` and `assertNotEqual` accept two different types: an `int` literal against a
+`std::size_t`, or a string literal against a `std::string`. Integers are compared with
+`std::cmp_equal`, so `-1` never equals `SIZE_MAX`. To share state between steps without a
+`shared_ptr`, use `speclab::Test<State>` ([below](#test-binaries-registration-and-the-discovery-runner)).
 
 All the examples in this README are compiled with `-Wall -Wextra -Werror` and run before they are
 published.
@@ -153,6 +161,68 @@ A failed `SafetyCriticalAssertion` gives a `Critical` status. The class-based AP
 shown in [`examples/basic_example.cpp`](examples/basic_example.cpp) and
 [`examples/pulse_oximeter_example.cpp`](examples/pulse_oximeter_example.cpp), which CI builds and
 runs on every platform.
+
+### Test binaries: registration and the discovery runner
+
+A test executable registers its scenarios with `speclab::Register` objects, and hands `main` to
+`speclab::runMain`:
+
+```cpp
+using speclab::core::Assertions;
+using speclab::core::Checks;
+
+struct Reading {
+    int spo2{0};
+    int pulse{0};
+    std::vector<std::string> alarms;
+};
+
+// One registered scenario: a name, comma-separated labels, and a function returning its result.
+const speclab::Register lowSpo2{"A low SpO2 reading raises one alarm", "alarm,unit", [] {
+    return speclab::Test<Reading>("SPO2-LOW")
+        .Given("a reading of 85 % at 72 bpm", [](Reading& r) { r.spo2 = 85; r.pulse = 72; })
+        .When("the alarm rules run", [](Reading& r) {
+            if (r.spo2 < 90) { r.alarms.push_back("SPO2_LOW"); }
+        })
+        .Then("exactly one SPO2_LOW alarm is raised", [](const Reading& r) {
+            Assertions::require(r.alarms.size() == 1, "expected 1 alarm, got {}", r.alarms.size());
+            Assertions::assertEqual("SPO2_LOW", r.alarms.front());
+        })
+        .Execute();
+}};
+
+const speclab::Register vitals{"Vital signs stay within their ranges", "unit", [] {
+    return speclab::Test<Reading>("VITALS-RANGE", Reading{.spo2 = 97, .pulse = 64, .alarms = {}})
+        .Then("every range holds", [](const Reading& r) {
+            Checks checks;  // collects every failure, then raise() reports them all at once
+            checks.expect(r.spo2 >= 90 && r.spo2 <= 100, "SpO2 in [90, 100]");
+            checks.expect(r.pulse >= 40 && r.pulse <= 180, "pulse in [40, 180]");
+            checks.raise();
+        })
+        .Execute();
+}};
+
+int main(int argc, char** argv) {
+    return speclab::runMain(argc, argv, "Pulse oximeter");
+}
+```
+
+- **`speclab::Test<State>(id[, initial])`** owns one `State` object. Every step receives it by
+  reference, and it outlives `Execute()` (`state()` returns it). Steps that don't need it can still
+  be `void()` callables. Declare `State` at namespace scope, not inside a function: MSVC 19.44
+  (VS 2022) crashes, or fails at link time, on `Test<State>` with a function-local type. VS 18,
+  GCC and Clang accept both.
+- **`speclab::core::Checks`** records several expectations. `raise()` throws a single failure that
+  lists every one that failed, with its `file:line`, so all of them can be fixed in one pass.
+- **`speclab::runMain`** implements a command-line contract that a build system can drive:
+  - `--list-tests` prints one `name<TAB>labels` line per scenario;
+  - `--run=<name>` runs one scenario and exits 0 or 1. An unknown name is an error, not a pass;
+  - with no option, it runs everything, printing `PASS`/`FAIL` lines and a summary.
+
+  The contract lets CTest register **one test per scenario, with its labels**, so a failure names
+  the scenario and not only the binary. [`tests/DiscoverScenarios.cmake`](tests/DiscoverScenarios.cmake)
+  does exactly that for SpecLab's own self-tests. The contract and its output are the ones MduX's
+  `SpecLabBridge.hpp` implemented, so that header can forward to these functions.
 
 ## Requirements traceability
 
@@ -243,9 +313,13 @@ git clone https://github.com/ambroise-leclerc/SpecLab.git
 cd SpecLab
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPECLAB_BUILD_EXAMPLES=ON
 cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ./build/examples/basic_example
 ./build/examples/pulse_oximeter_example
 ```
+
+`ctest` runs the self-tests: one entry per scenario of `speclab_selftests`, plus the `contract.*`
+tests of `runMain`'s command line. CI runs them on every platform.
 
 Add `--toolchain cmake/toolchains/linux-clang21-libcxx.cmake` (Linux Clang) or
 `--toolchain cmake/toolchains/macos-arm64-llvm.cmake` (macOS) as needed. Use Ninja. Makefile
@@ -257,7 +331,7 @@ The Visual Studio generator works only with MSVC, through MSVC's own `std` modul
 | Option | Default | Effect |
 |---|---|---|
 | `SPECLAB_BUILD_EXAMPLES` | `ON` | Build `basic_example` and `pulse_oximeter_example` |
-| `SPECLAB_BUILD_TESTS` | `ON` | No effect yet: the self-tests are not implemented (see below) |
+| `SPECLAB_BUILD_TESTS` | on when top-level | Build the self-tests (`tests/`) and register them with CTest |
 | `SPECLAB_WARNINGS_AS_ERRORS` | on when top-level | `-Werror` / `/WX` for SpecLab's own sources, clang-tidy and cppcheck |
 | `ENABLE_SANITIZER_ADDRESS`, `…_UNDEFINED_BEHAVIOR`, `…_LEAK`, `…_THREAD`, `…_MEMORY` | `OFF` | Sanitizers (GCC/Clang) |
 | `ENABLE_COVERAGE` | `OFF` | `--coverage` (GCC/Clang) |
@@ -271,9 +345,9 @@ The Visual Studio generator works only with MSVC, through MSVC's own `std` modul
   metadata.** Their `Execute()` runs no test and returns no result. For traceability that actually
   gates, use the registry described above (`RegisterRequirement`, `LinkTestRequirement`,
   `TestSuite`).
-- **There are no self-tests yet.** The `tests/` directory is a stub and `ctest` runs nothing. CI's
-  verification is building everything and running the two examples on every platform.
-  `examples/functional_api_examples.cpp` and `examples/requirements_example.cpp` are not built.
+- **The self-tests cover the functional API, the assertions, `Checks` and the runner contract, not
+  yet the class-based API, the requirement registry or the reporters.** `examples/functional_api_examples.cpp`
+  and `examples/requirements_example.cpp` are not built.
 - **No `ASSERT_*` macros.** A `#define` in a module interface is not exported by `import speclab;`,
   so call `speclab::core::Assertions::…` directly.
 
@@ -283,12 +357,12 @@ The Visual Studio generator works only with MSVC, through MSVC's own `std` modul
 include/speclab/
 ├── core/
 │   ├── TestResult.cppm          # TestResult, TestStatus, result collections
-│   ├── Assertions.cppm          # Assertions, AssertionFailure
+│   ├── Assertions.cppm          # Assertions, AssertionFailure, Checks
 │   ├── TestCase.cppm            # Class-based test cases
 │   ├── TestSuite.cppm           # Suites, parallel execution, coverage gate
 │   ├── Requirements.cppm        # Requirement registry and traceability exports
 │   ├── RequirementAPI.cppm      # Requirement / Feature / IEC62304Process builders (metadata only)
-│   └── FunctionalAPI.cppm       # Test, ParameterizedTest, benchmarks
+│   └── FunctionalAPI.cppm       # Test, Test<State>, ParameterizedTest, benchmarks
 ├── medical/
 │   ├── MedicalTestCase.cppm     # RiskLevel, SafetyClass, MedicalTestCase
 │   ├── ComplianceValidator.cppm # Compliance validation helpers
@@ -297,7 +371,8 @@ include/speclab/
 │   ├── Reporter.cppm            # Reporter interface
 │   └── ConsoleReporter.cppm     # Console output
 ├── runners/
-│   └── TestRunner.cppm          # Test execution engine
+│   ├── TestRunner.cppm          # Test execution engine
+│   └── Discovery.cppm           # Register, runMain (--list-tests / --run=)
 └── SpecLab.cppm                 # `import speclab;` aggregates every module above
 ```
 
@@ -342,8 +417,9 @@ organization's quality management system procedures.
 - [x] Given/When/Then functional API, parameterized tests, benchmarks
 - [x] Requirement registry, coverage gate, CSV/HTML traceability matrix
 - [x] Windows, Linux (GCC and Clang) and macOS Apple Silicon in CI
-- [ ] Self-tests run by `ctest` on every platform
-- [ ] Requirement, Feature and IEC62304Process builders that execute their tests
-- [ ] Soft (collecting) assertions, test registration and a `--list-tests` / `--run=` runner (currently implemented in MduX's `SpecLabBridge.hpp`)
+- [x] Self-tests run by `ctest` on every platform
+- [x] Collecting assertions (`Checks`), `require`, `Test<State>`, and test registration with a `--list-tests` / `--run=` runner
+- [ ] Requirement, Feature and IEC62304Process builders that execute their tests ([#25](https://github.com/ambroise-leclerc/SpecLab/issues/25))
+- [ ] Self-tests for the class-based API, the requirement registry and the reporters
 - [ ] Visual test reporting dashboard
 - [ ] Cryptographic audit trail signing

@@ -7,6 +7,43 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
+## [Unreleased]
+
+### Added
+- The APIs MduX had to write in its `tests/framework/SpecLabBridge.hpp`, so that header can forward
+  to SpecLab:
+  - **`speclab::Register` and `speclab::runMain`** (new module `speclab.runners.discovery`):
+    registration without macros, and a runner implementing `--list-tests` (`name<TAB>labels`) and
+    `--run=<name>`, with the bridge's exit codes and output, byte for byte. An unknown name is an
+    error, not a pass.
+  - **`speclab::core::Checks`**: collects several failed expectations and reports them in one
+    `AssertionFailure`, each with its `file:line`.
+  - **`speclab::Test<State>(id[, initial])`**: Given/When/Then steps that receive a shared
+    `State&`, which outlives `Execute()`. This replaces the `std::shared_ptr<State>` idiom. Steps
+    may still be `void()`. With MSVC 19.44 (VS 2022), `State` must be declared at namespace scope:
+    a function-local type makes that compiler crash (C1001) or leave symbols undefined (C5046).
+  - **`Assertions::require(condition, "format {}", args…)`**: a compile-time-checked format
+    string, formatted only on failure, with the caller's `source_location`.
+- **Self-tests** (`tests/`), run by `ctest` on every CI leg: one CTest entry per scenario
+  (discovered with `--list-tests`, with labels), plus `contract.*` tests that check the exit code
+  **and** the exact output of `runMain`. `SPECLAB_BUILD_TESTS` now defaults to on only when
+  SpecLab is the top-level project.
+
+### Changed
+- `assertEqual` and `assertNotEqual` accept two different types (an `int` literal against a
+  `std::size_t`, or a string literal against a `std::string`). Integers are compared with
+  `std::cmp_equal`, so `-1` no longer risks equalling `SIZE_MAX`, and callers get no
+  sign-conversion warnings. `bool` and the character types (`char`, `wchar_t`, `char8_t`,
+  `char16_t`, `char32_t`) are rejected by `std::cmp_equal`, so they are compared with `==`.
+- `AssertionFailure::formatLocation()`, and therefore `TestResult::errorDetails`, reports the
+  source file by name instead of by absolute path. The output is now identical on every machine;
+  `location()` still has the full path.
+
+### Fixed
+- `RequirementAPI.cppm` forward-declared `ParameterizedTestBuilder`, which is attached to another
+  module. Clang rejects that ("cannot be attached to other modules") in any translation unit that
+  uses `ParameterizedTest`. The declaration was unused and is removed.
+
 ## [0.1.2] - 2026-09-19
 
 ### Added

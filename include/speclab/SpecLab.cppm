@@ -24,6 +24,7 @@ export import speclab.medical.compliancevalidator;
 export import speclab.reporters.reporter;
 export import speclab.reporters.consolereporter;
 export import speclab.runners.testrunner;
+export import speclab.runners.discovery;
 
 import std;
 
@@ -50,7 +51,12 @@ export namespace SpecLab {
     
     // Re-export functional API
     using speclab::Test;
+    using speclab::StatefulTestBuilder;
     using speclab::ParameterizedTest;
+    using speclab::core::Assertions;
+    using speclab::core::Checks;
+    using speclab::Register;
+    using speclab::runMain;
     using speclab::Requirement;
     using speclab::Feature;
     using speclab::IEC62304Process;

@@ -104,10 +104,15 @@ jobs:
           -DCMAKE_C_COMPILER=cl `
           -DCMAKE_CXX_COMPILER=cl `
           -DSPECLAB_BUILD_EXAMPLES=ON `
-          -DSPECLAB_BUILD_TESTS=OFF
+          -DSPECLAB_BUILD_TESTS=ON
 
     - name: Build SpecLab
       run: cmake --build build --parallel
+
+    # One CTest entry per self-test scenario (discovered from the binary with --list-tests), plus the
+    # runMain command-line contract tests. --no-tests=error: an empty selection is a failure, not a pass.
+    - name: Run self-tests
+      run: ctest --test-dir build --output-on-failure --no-tests=error
 
     - name: Run basic example
       run: |
@@ -235,10 +240,15 @@ jobs:
           -DCMAKE_CXX_COMPILER=g++-${{ matrix.gcc-version }} \
           -DCMAKE_C_COMPILER=gcc-${{ matrix.gcc-version }} \
           -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_BUILD_TESTS=OFF
+          -DSPECLAB_BUILD_TESTS=ON
 
     - name: Build SpecLab
       run: cmake --build build --parallel
+
+    # One CTest entry per self-test scenario (discovered from the binary with --list-tests), plus the
+    # runMain command-line contract tests. --no-tests=error: an empty selection is a failure, not a pass.
+    - name: Run self-tests
+      run: ctest --test-dir build --output-on-failure --no-tests=error
 
     - name: Run basic example
       run: |
@@ -336,10 +346,15 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
           -DENABLE_CACHE=OFF \
           -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_BUILD_TESTS=OFF
+          -DSPECLAB_BUILD_TESTS=ON
 
     - name: Build SpecLab
       run: cmake --build build --parallel
+
+    # One CTest entry per self-test scenario (discovered from the binary with --list-tests), plus the
+    # runMain command-line contract tests. --no-tests=error: an empty selection is a failure, not a pass.
+    - name: Run self-tests
+      run: ctest --test-dir build --output-on-failure --no-tests=error
 
     - name: Run basic example
       run: |
@@ -400,10 +415,15 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
           -DENABLE_CACHE=OFF \
           -DSPECLAB_BUILD_EXAMPLES=ON \
-          -DSPECLAB_BUILD_TESTS=OFF
+          -DSPECLAB_BUILD_TESTS=ON
 
     - name: Build SpecLab
       run: cmake --build build --parallel
+
+    # One CTest entry per self-test scenario (discovered from the binary with --list-tests), plus the
+    # runMain command-line contract tests. --no-tests=error: an empty selection is a failure, not a pass.
+    - name: Run self-tests
+      run: ctest --test-dir build --output-on-failure --no-tests=error
 
     - name: Run basic example
       run: |
