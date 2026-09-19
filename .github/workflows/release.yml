@@ -86,7 +86,7 @@ jobs:
           PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
           VERSION=nightly-$(date +%Y%m%d)
-          PROJECT_VERSION=0.1.2
+          PROJECT_VERSION=0.2.0
         fi
         PACKAGE_NAME="SpecLab-$VERSION-${{ matrix.platform }}-${{ matrix.arch }}"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -317,7 +317,7 @@ jobs:
           PROJECT_VERSION=${PROJECT_VERSION%%-*}
         else
           VERSION=nightly-$(date +%Y%m%d)
-          PROJECT_VERSION=0.1.2
+          PROJECT_VERSION=0.2.0
         fi
         PACKAGE_NAME="SpecLab-$VERSION-linux-x64"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"

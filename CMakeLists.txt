@@ -33,9 +33,9 @@ include(cmake/PreventInSourceBuilds.cmake)
 # to this directory, and a consumer can still preset SPECLAB_PROJECT_VERSION. PROJECT_IS_TOP_LEVEL
 # is not available yet - it is set by project(), which needs this value.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(SPECLAB_PROJECT_VERSION "0.1.2" CACHE STRING "SpecLab project version")
+    set(SPECLAB_PROJECT_VERSION "0.2.0" CACHE STRING "SpecLab project version")
 elseif(NOT DEFINED SPECLAB_PROJECT_VERSION)
-    set(SPECLAB_PROJECT_VERSION "0.1.2")
+    set(SPECLAB_PROJECT_VERSION "0.2.0")
 endif()
 project(speclab VERSION ${SPECLAB_PROJECT_VERSION} DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
 

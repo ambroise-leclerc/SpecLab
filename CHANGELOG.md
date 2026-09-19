@@ -7,7 +7,7 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-19
 
 ### Added
 - The APIs MduX had to write in its `tests/framework/SpecLabBridge.hpp`, so that header can forward
@@ -38,6 +38,10 @@ happened once, to v0.1.0 (see below).
 - `AssertionFailure::formatLocation()`, and therefore `TestResult::errorDetails`, reports the
   source file by name instead of by absolute path. The output is now identical on every machine;
   `location()` still has the full path.
+- GitHub release notes are built from this file's section for the tag, followed by the
+  experimental-project disclaimer, instead of a fixed template. The template claimed regulatory
+  "validation" and linked to documentation that does not exist. The release job fails if the
+  section is missing or empty.
 
 ### Fixed
 - `RequirementAPI.cppm` forward-declared `ParameterizedTestBuilder`, which is attached to another
