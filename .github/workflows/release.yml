@@ -414,8 +414,12 @@ jobs:
           found && /^## \[/ { exit }
           found { print }
         ' CHANGELOG.md > changelog-section.md
-        if ! grep -q '[^[:space:]]' changelog-section.md; then
+        if ! awk -v heading="## [${PKG_VERSION}]" 'index($0, heading) == 1 { found = 1 } END { exit !found }' CHANGELOG.md; then
           echo "::error::CHANGELOG.md has no '## [${PKG_VERSION}]' section. Add it (in a PR) before tagging."
+          exit 1
+        fi
+        if ! grep -q '[^[:space:]]' changelog-section.md; then
+          echo "::error::CHANGELOG.md's '## [${PKG_VERSION}]' section is empty. Describe the release (in a PR) before tagging."
           exit 1
         fi
         {
