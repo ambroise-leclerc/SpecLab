@@ -33,7 +33,8 @@ happened once, to v0.1.0 (see below).
 - `assertEqual` and `assertNotEqual` accept two different types (an `int` literal against a
   `std::size_t`, or a string literal against a `std::string`). Integers are compared with
   `std::cmp_equal`, so `-1` no longer risks equalling `SIZE_MAX`, and callers get no
-  sign-conversion warnings.
+  sign-conversion warnings. `bool` and the character types (`char`, `wchar_t`, `char8_t`,
+  `char16_t`, `char32_t`) are rejected by `std::cmp_equal`, so they are compared with `==`.
 - `AssertionFailure::formatLocation()`, and therefore `TestResult::errorDetails`, reports the
   source file by name instead of by absolute path. The output is now identical on every machine;
   `location()` still has the full path.

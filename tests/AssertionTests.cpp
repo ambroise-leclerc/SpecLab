@@ -63,6 +63,26 @@ const speclab::Register stringComparison{"assertEqual compares a string literal 
         .Execute();
 }};
 
+const speclab::Register characters{"assertEqual and assertNotEqual compare character types", "unit", [] {
+    return speclab::Test("assert-equal-characters")
+        .Then("char, wchar_t, char8_t, char16_t and char32_t compare with ==", [] {
+            Assertions::assertEqual('a', 'a');
+            Assertions::assertNotEqual('a', 'b');
+            Assertions::assertEqual(L'w', L'w');
+            Assertions::assertEqual(u8'x', u8'x');
+            Assertions::assertEqual(u'y', u'y');
+            Assertions::assertEqual(U'z', U'z');
+            Assertions::assertNotEqual(U'z', U'Z');
+            // signed/unsigned char are integer types, so they still go through std::cmp_equal.
+            Assertions::assertEqual(static_cast<signed char>(-1), -1);
+            Assertions::assertNotEqual(static_cast<unsigned char>(255), -1);
+            const AssertionFailure failure = expectFailure([] { Assertions::assertEqual('a', 'b'); });
+            Assertions::assertTrue(std::string_view{failure.what()}.starts_with("assertEqual failed"),
+                                   "a character mismatch is reported");
+        })
+        .Execute();
+}};
+
 const speclab::Register requirePasses{"require does nothing when its condition holds", "unit", [] {
     return speclab::Test("require-passes")
         .Then("no exception is thrown", [] { Assertions::require(true, "never formatted {}", 42); })

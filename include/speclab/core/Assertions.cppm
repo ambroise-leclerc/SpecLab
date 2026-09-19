@@ -63,9 +63,21 @@ export namespace speclab::core {
             : testId(id), deviceComponent(component) {}
     };
 
-    /// An integer type other than bool; used by assertEqual to compare mixed integer types safely.
+    /**
+     * @brief An integer type std::cmp_equal accepts: a standard or extended integer type
+     *
+     * That excludes bool and the character types (char, wchar_t, char8_t, char16_t, char32_t),
+     * which std::cmp_equal rejects with a static_assert. Those are compared with == instead.
+     * signed char and unsigned char are integer types and stay in.
+     */
     template<typename T>
-    concept Integer = std::integral<T> && !std::same_as<std::remove_cv_t<T>, bool>;
+    concept Integer = std::integral<T>
+                   && !std::same_as<std::remove_cv_t<T>, bool>
+                   && !std::same_as<std::remove_cv_t<T>, char>
+                   && !std::same_as<std::remove_cv_t<T>, wchar_t>
+                   && !std::same_as<std::remove_cv_t<T>, char8_t>
+                   && !std::same_as<std::remove_cv_t<T>, char16_t>
+                   && !std::same_as<std::remove_cv_t<T>, char32_t>;
 
     /**
      * @brief A compile-time-checked format string plus the caller's source location
