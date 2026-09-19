@@ -36,28 +36,19 @@ function(configure_compiler_settings target_name)
 
   # Platform-specific definitions
   target_compile_definitions(${target_name} INTERFACE
-    $<$<PLATFORM_ID:Windows>:MDUX_PLATFORM_WINDOWS;WIN32_LEAN_AND_MEAN;NOMINMAX>
-    $<$<PLATFORM_ID:Linux>:MDUX_PLATFORM_LINUX>
+    $<$<PLATFORM_ID:Windows>:SPECLAB_PLATFORM_WINDOWS;WIN32_LEAN_AND_MEAN;NOMINMAX>
+    $<$<PLATFORM_ID:Linux>:SPECLAB_PLATFORM_LINUX>
   )
 endfunction()
 
-# Function to configure medical device compliance definitions
-function(configure_medical_compliance target_name version_major version_minor version_patch)
+# SpecLab version and compliance definitions. Applied to SpecLab's own translation units only
+# (speclab_options is linked privately); SPECLAB_ prefixed so they cannot collide with a
+# consumer's macros.
+function(configure_speclab_version target_name version_major version_minor version_patch)
   target_compile_definitions(${target_name} INTERFACE
-    MDUX_VERSION_MAJOR=${version_major}
-    MDUX_VERSION_MINOR=${version_minor}
-    MDUX_VERSION_PATCH=${version_patch}
-    MDUX_MEDICAL_DEVICE_COMPLIANCE=1
-  )
-endfunction()
-
-# Function to configure Vulkan definitions
-function(configure_vulkan_definitions target_name)
-  target_compile_definitions(${target_name} INTERFACE
-    MDUX_VULKAN_VERSION_MAJOR=1
-    MDUX_VULKAN_VERSION_MINOR=3
-    MDUX_VULKAN_VERSION_PATCH=0
-    MDUX_VULKAN_VALIDATION_LAYERS=$<IF:$<CONFIG:Debug>,1,0>
-    MDUX_GRAPHICS_ENABLED=1
+    SPECLAB_VERSION_MAJOR=${version_major}
+    SPECLAB_VERSION_MINOR=${version_minor}
+    SPECLAB_VERSION_PATCH=${version_patch}
+    SPECLAB_MEDICAL_DEVICE_COMPLIANCE=1
   )
 endfunction()

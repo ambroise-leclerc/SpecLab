@@ -22,12 +22,11 @@ permissions:
   actions: read
 
 env:
-  # Pinned, not 'latest'. CMakeLists.txt hardcodes CMAKE_EXPERIMENTAL_CXX_IMPORT_STD to a
-  # specific UUID, and CMake changes that UUID as the `import std` experimental feature evolves
-  # from release to release. A CMake that does not recognise the UUID rejects it ("set to
-  # incorrect value"), silently stops synthesising the std module, and the build collapses into
-  # hundreds of "could not find module 'std'" errors. 4.1.1 is the version MduX pins for the
-  # same reason - keep the two in step when either moves.
+  # Pinned, not 'latest'. CMakeLists.txt selects CMAKE_EXPERIMENTAL_CXX_IMPORT_STD per CMake
+  # series (4.0-4.2, 4.3, 4.4) and refuses any series it has not been qualified against, so a
+  # floating version would turn CI red the day a new series ships. 4.1.1 is the version MduX's
+  # GCC and MSVC legs pin; the linux-gcc matrix below also covers 4.3.1 (MduX's Clang and macOS
+  # legs) and 4.4.3 (the newest qualified series). Keep these in step with MduX.
   CMAKE_VERSION: '4.1.1'
   BUILD_TYPE: Release
 
@@ -36,7 +35,7 @@ jobs:
   # Windows MSVC Builds (Primary Medical Device Platform)
   # ============================================================================
   windows-msvc:
-    name: Windows MSVC (${{ matrix.arch }})
+    name: Windows MSVC (${{ matrix.os }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,8 +44,16 @@ jobs:
           # MSVC 17.14+ (VS 2022 17.10+) - required for C++23 modules
           - os: windows-2022
             arch: x64
+            vsversion: '2022'
           - os: windows-2022
             arch: x86
+            vsversion: '2022'
+          # windows-latest is what MduX builds on, so its MSVC toolset is the one SpecLab is
+          # actually consumed with. vsversion is left empty so msvc-dev-cmd selects whichever
+          # Visual Studio that image ships, rather than failing when it is newer than 2022.
+          - os: windows-latest
+            arch: x64
+            vsversion: ''
 
     steps:
     - name: Checkout code
@@ -62,10 +69,10 @@ jobs:
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: ${{ matrix.arch }}
-        vsversion: 2022
+        vsversion: ${{ matrix.vsversion }}
 
     - name: Install CMake and Ninja
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: ${{ env.CMAKE_VERSION }}
 
@@ -125,7 +132,7 @@ jobs:
     - name: Upload compliance artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: windows-msvc-${{ matrix.arch }}-compliance
+        name: windows-msvc-${{ matrix.os }}-${{ matrix.arch }}-compliance
         path: |
           compliance-report.md
           build/examples/*.exe
@@ -134,7 +141,7 @@ jobs:
   # Linux GCC Builds (Development Platform)
   # ============================================================================
   linux-gcc:
-    name: Linux GCC ${{ matrix.gcc-version }}
+    name: Linux GCC ${{ matrix.gcc-version }} (CMake ${{ matrix.cmake-version }})
     runs-on: ubuntu-latest
     container:
       image: gcc:${{ matrix.gcc-version }}
@@ -155,7 +162,18 @@ jobs:
           # The leg was carried briefly as continue-on-error, but a job that is expected to fail
           # teaches a reader nothing and leaves a permanent red check on every PR. Add a leg back
           # when there is a GCC 15.x that actually builds this project.
+          #
+          # 16.1.0, not 16.2.0: see issue #17 - GCC 16.2.0 corrupts this tree's module BMIs.
+          #
+          # One leg per qualified CMake `import std` gate (4.0-4.2, 4.3, 4.4), because each
+          # series uses a different CMAKE_EXPERIMENTAL_CXX_IMPORT_STD value and a wrong one fails
+          # only on that series. The 4.1.1 leg is the one whose artifacts feed the compliance job.
           - gcc-version: "16.1.0"
+            cmake-version: "4.1.1"
+          - gcc-version: "16.1.0"
+            cmake-version: "4.3.1"
+          - gcc-version: "16.1.0"
+            cmake-version: "4.4.3"
 
     steps:
     - name: Checkout code
@@ -174,10 +192,10 @@ jobs:
           curl \
           pkg-config
 
-    - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
+    - name: Install CMake ${{ matrix.cmake-version }}
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
-        cmakeVersion: ${{ env.CMAKE_VERSION }}
+        cmakeVersion: ${{ matrix.cmake-version }}
 
     - name: Setup GCC
       run: |
@@ -196,9 +214,9 @@ jobs:
           build
           ~/.cmake
           ~/.ccache
-        key: ${{ runner.os }}-gcc${{ matrix.gcc-version }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: ${{ runner.os }}-gcc${{ matrix.gcc-version }}-cmake${{ matrix.cmake-version }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
         restore-keys: |
-          ${{ runner.os }}-gcc${{ matrix.gcc-version }}-
+          ${{ runner.os }}-gcc${{ matrix.gcc-version }}-cmake${{ matrix.cmake-version }}-
 
     - name: Configure CMake
       run: |
@@ -224,6 +242,7 @@ jobs:
         ./pulse_oximeter_example
 
     - name: Upload Linux artifacts
+      if: matrix.cmake-version == env.CMAKE_VERSION
       uses: actions/upload-artifact@v4
       with:
         name: linux-gcc${{ matrix.gcc-version }}-artifacts
@@ -233,89 +252,93 @@ jobs:
           build/examples/pulse_oximeter_example
 
   # ============================================================================
-  # Linux Clang Builds (Alternative Compiler) - DISABLED
+  # Linux Clang Builds (Clang 21 + libc++)
   #
-  # This job was previously "disabled" only by having the word in its name
-  # (linux-clang-disabled): GitHub Actions does not read job names, so it ran on every push
-  # and failed on every push. It is commented out below, which is what actually disables it.
+  # This job used to be commented out, on the grounds that Clang had no verified way to get a std
+  # module. The way exists and MduX has used it on every push since its #246: select libc++ and
+  # point CMake at libc++'s own libc++.modules.json. cmake/toolchains/linux-clang21-libcxx.cmake
+  # does both, and this job builds through it - the same setup MduX builds SpecLab with, so a
+  # Clang regression here shows up in SpecLab's CI rather than first in a consumer's.
   #
-  # Why it is off: Clang 20 needs a std module and this project has no verified way to give it
-  # one. The manual route (clang --precompile .../libc++/v1/std.cppm, -fmodule-file=std=...)
-  # collides with the __CMAKE::CXX23 module CMake synthesises - Clang rejects two definitions
-  # of module std - and the std.cppm path it needs is not present in silkeh/clang:20 at all.
-  # The root CMakeLists.txt therefore has no Clang-specific module path; see the note there.
-  #
-  # To re-enable: get a Clang build working locally first, decide there whether the std module
-  # comes from __CMAKE::CXX23 or from a precompiled std.pcm (not both), then uncomment this and
-  # match whatever the CMakeLists.txt does. Do not land Clang CMake logic without this job green.
+  # No hand-rolled std.pcm, no Clang header-module flags: see the Clang note in CMakeLists.txt.
   # ============================================================================
-  # linux-clang:
-  #   name: Linux Clang ${{ matrix.clang-version }}
-  #   runs-on: ubuntu-latest
-  #   container:
-  #     image: silkeh/clang:20
-  #     options: --user root
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - clang-version: 20
-  #
-  #   steps:
-  #   - name: Install Git and essential tools
-  #     run: |
-  #       apt-get update
-  #       apt-get install -y git
-  #
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
-  #     with:
-  #       fetch-depth: 0
-  #
-  #   - name: Install dependencies
-  #     run: |
-  #       apt-get install -y \
-  #         ninja-build \
-  #         wget \
-  #         curl \
-  #         pkg-config \
-  #         libc++-dev \
-  #         libc++abi-dev
-  #
-  #   - name: Install CMake 4.0+
-  #     uses: lukka/get-cmake@latest
-  #     with:
-  #       cmakeVersion: ${{ env.CMAKE_VERSION }}
-  #
-  #   - name: Setup Clang
-  #     run: |
-  #       clang --version
-  #       clang++ --version
-  #       ln -sf /usr/bin/clang /usr/bin/clang-20
-  #       ln -sf /usr/bin/clang++ /usr/bin/clang++-20
-  #
-  #   - name: Configure CMake
-  #     run: |
-  #       cmake -B build \
-  #         -G Ninja \
-  #         -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-  #         -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang-version }} \
-  #         -DCMAKE_C_COMPILER=clang-${{ matrix.clang-version }} \
-  #         -DSPECLAB_BUILD_EXAMPLES=ON \
-  #         -DSPECLAB_BUILD_TESTS=OFF
-  #
-  #   - name: Build SpecLab
-  #     run: cmake --build build --parallel
-  #
-  #   - name: Run basic example
-  #     run: |
-  #       cd build/examples
-  #       ./basic_example
-  #
-  #   - name: Run pulse oximeter example
-  #     run: |
-  #       cd build/examples
-  #       ./pulse_oximeter_example
+  linux-clang:
+    name: Linux Clang 21 libc++ (CMake ${{ matrix.cmake-version }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 4.3.1 is what MduX's Clang legs (Linux and macOS) use.
+          - cmake-version: "4.3.1"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install CMake ${{ matrix.cmake-version }}
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
+      with:
+        cmakeVersion: ${{ matrix.cmake-version }}
+
+    - name: Install LLVM/Clang 21 and libc++
+      run: |
+        set -euo pipefail
+        # Key scoped to the LLVM repository with signed-by (not apt-key, which would trust it for
+        # every repository), and checked against the Debian LLVM archive key fingerprint before
+        # it is trusted - the same procedure as MduX's clang-build.yml.
+        LLVM_KEY_FPR="6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
+        sudo install -d -m 0755 /etc/apt/keyrings
+        curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key -o /tmp/llvm-snapshot.asc
+        gpg --show-keys --with-colons --fingerprint /tmp/llvm-snapshot.asc \
+          | awk -F: '/^fpr:/ {print $10}' | grep -qx "$LLVM_KEY_FPR"
+        gpg --dearmor < /tmp/llvm-snapshot.asc > /tmp/llvm.gpg
+        sudo install -m 0644 /tmp/llvm.gpg /etc/apt/keyrings/llvm.gpg
+        codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+        echo "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+          | sudo tee /etc/apt/sources.list.d/llvm-toolchain-21.list
+        sudo apt-get update
+        sudo apt-get install -y ninja-build clang-21 llvm-21 libc++-21-dev libc++abi-21-dev
+
+    # Checks the binary the toolchain file uses (/usr/lib/llvm-21/bin), not whatever `clang` is on
+    # PATH - the runner image ships its own, older Clang there.
+    - name: Verify Clang 21 and the libc++ module manifest
+      run: |
+        set -euo pipefail
+        clangxx=/usr/lib/llvm-21/bin/clang++
+        "$clangxx" --version
+        major="$("$clangxx" --version | sed -n 's/.*clang version \([0-9]*\).*/\1/p' | head -1)"
+        if [ "$major" != "21" ]; then
+          echo "::error::${clangxx} reports major version ${major}, expected 21."
+          exit 1
+        fi
+        find /usr/lib/llvm-21 -name 'libc++.modules.json' | grep . \
+          || { echo "::error::libc++-21-dev ships no libc++.modules.json; import std cannot resolve."; exit 1; }
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -G Ninja \
+          --toolchain cmake/toolchains/linux-clang21-libcxx.cmake \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DENABLE_CACHE=OFF \
+          -DSPECLAB_BUILD_EXAMPLES=ON \
+          -DSPECLAB_BUILD_TESTS=OFF
+
+    - name: Build SpecLab
+      run: cmake --build build --parallel
+
+    - name: Run basic example
+      run: |
+        cd build/examples
+        ./basic_example
+
+    - name: Run pulse oximeter example
+      run: |
+        cd build/examples
+        ./pulse_oximeter_example
 
   # ============================================================================
   # Medical Device Compliance Validation
@@ -323,7 +346,7 @@ jobs:
   medical-compliance:
     name: Medical Device Compliance Validation
     runs-on: windows-2022
-    needs: [windows-msvc, linux-gcc]
+    needs: [windows-msvc, linux-gcc, linux-clang]
     
     steps:
     - name: Checkout code
@@ -332,7 +355,7 @@ jobs:
     - name: Download Windows artifacts
       uses: actions/download-artifact@v4
       with:
-        name: windows-msvc-x64-compliance
+        name: windows-msvc-windows-2022-x64-compliance
         path: artifacts/windows
 
     # gcc16: GCC 16.1.0 is the only Linux leg (see the linux-gcc matrix for why GCC 15 is absent).
@@ -356,6 +379,7 @@ jobs:
         echo "## Platform Coverage" >> iec62304-compliance.md
         echo "- ✅ Windows MSVC (Primary platform)" >> iec62304-compliance.md
         echo "- ✅ Linux GCC (Development platform)" >> iec62304-compliance.md
+        echo "- ✅ Linux Clang 21 + libc++" >> iec62304-compliance.md
         echo "" >> iec62304-compliance.md
         echo "## Standards Compliance" >> iec62304-compliance.md
         echo "- IEC 62304: Medical device software lifecycle processes" >> iec62304-compliance.md
@@ -410,7 +434,7 @@ jobs:
         queries: security-and-quality
 
     - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: ${{ env.CMAKE_VERSION }}
 
@@ -492,7 +516,7 @@ jobs:
         arch: x64
 
     - name: Install CMake and Ninja
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: ${{ env.CMAKE_VERSION }}
 

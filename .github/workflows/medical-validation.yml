@@ -43,7 +43,7 @@ jobs:
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: '4.1.1'
 
@@ -53,7 +53,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release `
           -DSPECLAB_BUILD_EXAMPLES=ON `
           -DSPECLAB_BUILD_TESTS=OFF `
-          -DMDUX_MEDICAL_DEVICE_COMPLIANCE=1 `
+          -DSPECLAB_MEDICAL_DEVICE_COMPLIANCE=1 `
           -DSPECLAB_IEC62304_VALIDATION=ON
 
     - name: Build Medical Device Software
@@ -162,7 +162,7 @@ jobs:
         apt-get install -y ninja-build git wget curl pkg-config
 
     - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: '4.1.1'
 
@@ -244,7 +244,7 @@ jobs:
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Install CMake 4.0+
-      uses: lukka/get-cmake@latest
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
         cmakeVersion: '4.1.1'
 
