@@ -195,6 +195,12 @@ framework-emitted, not tests you register.
 - In `runners/Discovery.cppm`, `registry()` and `runMain` are deliberately not `inline`. As
   non-inline functions attached to the module they have one definition, so there is one registry
   per program.
+- `speclab::Test<State>` with a **function-local** `State` breaks MSVC 19.44 (VS 2022): C5046
+  ("symbol involving type with internal linkage not defined") and then either an internal
+  compiler error (C1001) or a link failure. VS 18, GCC and Clang are fine. Declare `State` types at
+  namespace scope (an anonymous namespace works), as `tests/FunctionalApiTests.cpp` does. Don't
+  silence C5046 with `/wd5046`: on that compiler it reports a real missing definition. Lambdas and
+  the `shared_ptr`-to-local-struct idiom are not affected; a `windows-2022` probe checked that.
 - A GCC 16 modules bug has been seen in a consumer (MduX `ml_spec`, `GeneratedModelTests.cpp`).
   Once its test bridge forwarded `main` to `speclab::runMain`, that translation unit failed with
   "use of deleted function ~ModelPackage()". A single local

@@ -209,7 +209,9 @@ int main(int argc, char** argv) {
 
 - **`speclab::Test<State>(id[, initial])`** owns one `State` object. Every step receives it by
   reference, and it outlives `Execute()` (`state()` returns it). Steps that don't need it can still
-  be `void()` callables.
+  be `void()` callables. Declare `State` at namespace scope, not inside a function: MSVC 19.44
+  (VS 2022) crashes, or fails at link time, on `Test<State>` with a function-local type. VS 18,
+  GCC and Clang accept both.
 - **`speclab::core::Checks`** records several expectations. `raise()` throws a single failure that
   lists every one that failed, with its `file:line`, so all of them can be fixed in one pass.
 - **`speclab::runMain`** implements a command-line contract that a build system can drive:

@@ -9,6 +9,14 @@ using speclab::core::TestStatus;
 
 namespace {
 
+// At namespace scope, not inside the scenario's lambda: MSVC 19.44 (VS 2022) cannot instantiate
+// speclab::Test<State> for a function-local State - it crashes (C1001) or leaves symbols undefined
+// at link time (the C5046 warning). VS 18, GCC and Clang accept either.
+struct AdditionState {
+    int operand{0};
+    int sum{0};
+};
+
 const speclab::Register stepOrder{"Given, When and Then run once each, in order", "unit", [] {
     auto order = std::make_shared<std::vector<std::string>>();
     const speclab::core::TestResult inner = speclab::Test("inner-order")
@@ -27,14 +35,10 @@ const speclab::Register stepOrder{"Given, When and Then run once each, in order"
 }};
 
 const speclab::Register statefulShared{"Test<State> hands every step the same state", "unit", [] {
-    struct State {
-        int operand{0};
-        int sum{0};
-    };
-    auto test = speclab::Test<State>("stateful-shared");
-    test.Given("an operand of 2", [](State& s) { s.operand = 2; })
-        .When("3 is added", [](State& s) { s.sum = s.operand + 3; })
-        .Then("the sum is 5", [](const State& s) { Assertions::assertEqual(5, s.sum); });
+    auto test = speclab::Test<AdditionState>("stateful-shared");
+    test.Given("an operand of 2", [](AdditionState& s) { s.operand = 2; })
+        .When("3 is added", [](AdditionState& s) { s.sum = s.operand + 3; })
+        .Then("the sum is 5", [](const AdditionState& s) { Assertions::assertEqual(5, s.sum); });
     const speclab::core::TestResult inner = test.Execute();
     const int sumAfterwards = test.state().sum;
     return speclab::Test("stateful-shared-checked")

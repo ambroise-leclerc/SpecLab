@@ -20,7 +20,8 @@ happened once, to v0.1.0 (see below).
     `AssertionFailure`, each with its `file:line`.
   - **`speclab::Test<State>(id[, initial])`**: Given/When/Then steps that receive a shared
     `State&`, which outlives `Execute()`. This replaces the `std::shared_ptr<State>` idiom. Steps
-    may still be `void()`.
+    may still be `void()`. With MSVC 19.44 (VS 2022), `State` must be declared at namespace scope:
+    a function-local type makes that compiler crash (C1001) or leave symbols undefined (C5046).
   - **`Assertions::require(condition, "format {}", args…)`**: a compile-time-checked format
     string, formatted only on failure, with the caller's `source_location`.
 - **Self-tests** (`tests/`), run by `ctest` on every CI leg: one CTest entry per scenario
