@@ -81,7 +81,9 @@ are easy to get wrong or that contradict the docs.
 ## Releases
 
 - A release is a `vX.Y.Z` tag pushed on `develop`. `.github/workflows/release.yml`
-  builds the packages and creates the GitHub release. Bump `SPECLAB_PROJECT_VERSION`'s
+  builds the packages and creates the GitHub release. The release notes are the
+  `## [X.Y.Z]` section of `CHANGELOG.md` plus a fixed disclaimer. The workflow fails if
+  that section is missing, so the CHANGELOG is also where the release text is written. Bump `SPECLAB_PROJECT_VERSION`'s
   default in `CMakeLists.txt` and add a `CHANGELOG.md` entry in a PR *before*
   tagging, so that the tagged sources declare their own version.
 - **Tags are immutable**: never move or re-push a published tag, and ship a fix as a
