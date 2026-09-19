@@ -7,6 +7,17 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
+## [0.1.2] - 2026-09-19
+
+### Fixed
+- Sanitizer builds of consumers that do `import speclab;`. v0.1.1 compiled SpecLab with
+  `-fsanitize=...` but no longer passed that flag to consumers. With GCC 16, a translation unit
+  that imports an instrumented SpecLab module without being instrumented itself fails with an
+  internal compiler error (`in expand_UBSAN_NULL, at internal-fn.cc`). MduX's ASan+UBSan job
+  failed this way. `-fsanitize=...` is now PUBLIC on `speclab`, for compiling and linking, in the
+  build tree and in the installed package. `--coverage` is unchanged: it is compiled privately and
+  only its link flag is exported.
+
 ## [0.1.1] - 2026-09-19
 
 Build and consumer-compatibility release, with no change to the test API. After this release MduX

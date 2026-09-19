@@ -1,10 +1,20 @@
-# Instrumentation is split across two targets because it has two kinds of requirement:
-#   - compile flags (-fsanitize=..., --coverage) belong to how SpecLab itself is built, so they go
-#     on `options_target` (speclab_options, linked privately and kept out of consumers);
-#   - the matching link flags are a requirement of the *resulting library*: an instrumented
-#     libspeclab.a references __asan_*/__gcov_* symbols, and every executable that links it must
-#     pull in those runtimes. They go on `library_target`'s INTERFACE, which is exported, so they
-#     reach consumers in the build tree and through find_package(speclab) alike.
+# Coverage and sanitizers have different requirements for consumers:
+#
+# - Coverage: `--coverage -O0 -g` is how SpecLab itself is built, so it goes on `options_target`
+#   (speclab_options, linked privately). Only the link flag is required downstream, because an
+#   instrumented libspeclab.a references __gcov_* symbols. It goes on `library_target`'s exported
+#   INTERFACE.
+#
+# - Sanitizers: -fsanitize=... is required downstream for *both* compiling and linking, so it is
+#   PUBLIC on `library_target`. That covers SpecLab's own sources, and consumers in the build tree
+#   and through find_package(speclab). The reason is that SpecLab ships C++ named modules. A
+#   consumer that does `import speclab;` compiles inline and template code from SpecLab's module
+#   interfaces in its own translation unit, as those interfaces were built, with sanitizer checks
+#   included. When the importer is compiled without the same -fsanitize=..., GCC 16 fails with an
+#   internal compiler error (`in expand_UBSAN_NULL, at internal-fn.cc`). MduX's ASan+UBSan CI job
+#   hit this once the flags stopped leaking through a PUBLIC speclab_options. Carrying the flag also
+#   keeps a consumer's spec code instrumented in a sanitizer build, which is the point of such a
+#   build.
 function(enable_sanitizers options_target library_target)
 
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
@@ -66,7 +76,7 @@ function(enable_sanitizers options_target library_target)
        "${LIST_OF_SANITIZERS}"
        STREQUAL
        "")
-      target_compile_options(${options_target} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      target_compile_options(${library_target} PUBLIC -fsanitize=${LIST_OF_SANITIZERS})
       target_link_options(${library_target} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
     endif()
   endif()
