@@ -359,7 +359,7 @@ jobs:
   # CMakeLists.txt because it has no `import std` module surface.
   # ============================================================================
   macos-arm64:
-    name: macOS 15 arm64 (Clang 21, libc++)
+    name: macOS 15 arm64 (Clang 21.1.8, libc++)
     # Explicitly the arm64 image; macos-latest can change architecture and toolchain independently
     # of this verified target.
     runs-on: macos-15

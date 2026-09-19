@@ -37,12 +37,17 @@ set(CMAKE_RANLIB "${_speclab_llvm_root}/bin/llvm-ranlib" CACHE FILEPATH "" FORCE
 # standard library rather than silently mixing two.
 set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
 if(DEFINED CMAKE_CXX_FLAGS)
-    if(CMAKE_CXX_FLAGS MATCHES "-stdlib=([^ ]+)")
-        if(NOT CMAKE_MATCH_1 STREQUAL "libc++")
-            message(FATAL_ERROR
-                "CMAKE_CXX_FLAGS selects -stdlib=${CMAKE_MATCH_1}, but this toolchain needs libc++: "
-                "libc++ is the standard library whose std module `import std` uses here.")
-        endif()
+    # Every -stdlib= occurrence is checked, not only the first: "-stdlib=libc++ -stdlib=libstdc++"
+    # would otherwise pass, and the compiler honours the last one.
+    string(REGEX MATCHALL "-stdlib=[^ ]+" _speclab_stdlib_flags "${CMAKE_CXX_FLAGS}")
+    if(_speclab_stdlib_flags)
+        foreach(_speclab_stdlib_flag IN LISTS _speclab_stdlib_flags)
+            if(NOT _speclab_stdlib_flag STREQUAL "-stdlib=libc++")
+                message(FATAL_ERROR
+                    "CMAKE_CXX_FLAGS contains ${_speclab_stdlib_flag}, but this toolchain needs libc++: "
+                    "libc++ is the standard library whose std module `import std` uses here.")
+            endif()
+        endforeach()
     else()
         string(STRIP "${CMAKE_CXX_FLAGS} -stdlib=libc++" _speclab_cxx_flags)
         set(CMAKE_CXX_FLAGS "${_speclab_cxx_flags}" CACHE STRING "Flags used by the CXX compiler during all build types." FORCE)

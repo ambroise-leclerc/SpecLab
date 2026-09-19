@@ -72,29 +72,46 @@ set(CMAKE_OSX_SYSROOT "${_speclab_macos_sdk}" CACHE PATH "" FORCE)
 # conflicting standard library.
 set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
 if(DEFINED CMAKE_CXX_FLAGS)
-    if(CMAKE_CXX_FLAGS MATCHES "-stdlib=([^ ]+)")
-        if(NOT CMAKE_MATCH_1 STREQUAL "libc++")
-            message(FATAL_ERROR
-                "CMAKE_CXX_FLAGS selects -stdlib=${CMAKE_MATCH_1}, but this toolchain needs libc++: "
-                "libc++ is the standard library whose std module `import std` uses here.")
-        endif()
+    # Every -stdlib= occurrence is checked, not only the first: "-stdlib=libc++ -stdlib=libstdc++"
+    # would otherwise pass, and the compiler honours the last one.
+    string(REGEX MATCHALL "-stdlib=[^ ]+" _speclab_stdlib_flags "${CMAKE_CXX_FLAGS}")
+    if(_speclab_stdlib_flags)
+        foreach(_speclab_stdlib_flag IN LISTS _speclab_stdlib_flags)
+            if(NOT _speclab_stdlib_flag STREQUAL "-stdlib=libc++")
+                message(FATAL_ERROR
+                    "CMAKE_CXX_FLAGS contains ${_speclab_stdlib_flag}, but this toolchain needs libc++: "
+                    "libc++ is the standard library whose std module `import std` uses here.")
+            endif()
+        endforeach()
     else()
         string(STRIP "${CMAKE_CXX_FLAGS} -stdlib=libc++" _speclab_cxx_flags)
         set(CMAKE_CXX_FLAGS "${_speclab_cxx_flags}" CACHE STRING "Flags used by the CXX compiler during all build types." FORCE)
     endif()
 endif()
 
-# Homebrew's LLVM puts the manifest in lib/c++/; search the other known layouts too rather than
-# asserting one, and re-discover when the LLVM root changes (see the Linux toolchain for why).
+# Homebrew's LLVM puts the manifest in lib/c++/, which is preferred; the other known layouts are
+# searched too rather than asserting one. Re-discover when the LLVM root changes (see the Linux
+# toolchain for why).
 if(DEFINED CMAKE_CXX_STDLIB_MODULES_JSON AND NOT DEFINED SPECLAB_STDLIB_MODULES_JSON_ROOT)
     # Pinned by the operator.
 elseif(NOT DEFINED CMAKE_CXX_STDLIB_MODULES_JSON
        OR NOT SPECLAB_STDLIB_MODULES_JSON_ROOT STREQUAL "${_speclab_llvm_root}")
-    file(GLOB _speclab_libcxx_modules_json
-        "${_speclab_llvm_root}/lib/c++/libc++.modules.json"
-        "${_speclab_llvm_root}/lib/libc++.modules.json"
-        "${_speclab_llvm_root}/lib/*/libc++.modules.json")
-    list(SORT _speclab_libcxx_modules_json)
+    # Candidates in priority order: Homebrew's layout first. The list is deliberately not sorted,
+    # because alphabetical order would put e.g. lib/aarch64-.../ ahead of lib/c++/. The glob for
+    # other layouts is sorted within itself so that the same installation always yields the same
+    # result.
+    set(_speclab_libcxx_modules_json "")
+    foreach(_speclab_candidate
+            "${_speclab_llvm_root}/lib/c++/libc++.modules.json"
+            "${_speclab_llvm_root}/lib/libc++.modules.json")
+        if(EXISTS "${_speclab_candidate}")
+            list(APPEND _speclab_libcxx_modules_json "${_speclab_candidate}")
+        endif()
+    endforeach()
+    file(GLOB _speclab_libcxx_modules_json_other "${_speclab_llvm_root}/lib/*/libc++.modules.json")
+    list(SORT _speclab_libcxx_modules_json_other)
+    list(APPEND _speclab_libcxx_modules_json ${_speclab_libcxx_modules_json_other})
+    list(REMOVE_DUPLICATES _speclab_libcxx_modules_json)
     list(LENGTH _speclab_libcxx_modules_json _speclab_libcxx_modules_json_count)
     if(_speclab_libcxx_modules_json_count EQUAL 0)
         message(FATAL_ERROR
@@ -102,6 +119,12 @@ elseif(NOT DEFINED CMAKE_CXX_STDLIB_MODULES_JSON
             "cannot resolve for libc++; use Homebrew's llvm@21 or set CMAKE_CXX_STDLIB_MODULES_JSON.")
     endif()
     list(GET _speclab_libcxx_modules_json 0 _speclab_libcxx_modules_json_first)
+    if(_speclab_libcxx_modules_json_count GREATER 1)
+        message(WARNING
+            "Multiple libc++.modules.json under '${_speclab_llvm_root}': "
+            "${_speclab_libcxx_modules_json}. Using '${_speclab_libcxx_modules_json_first}'. Set "
+            "CMAKE_CXX_STDLIB_MODULES_JSON explicitly to choose a different one.")
+    endif()
     set(CMAKE_CXX_STDLIB_MODULES_JSON "${_speclab_libcxx_modules_json_first}"
         CACHE FILEPATH "" FORCE)
     set(SPECLAB_STDLIB_MODULES_JSON_ROOT "${_speclab_llvm_root}"
