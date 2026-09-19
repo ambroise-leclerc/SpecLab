@@ -33,9 +33,9 @@ include(cmake/PreventInSourceBuilds.cmake)
 # to this directory, and a consumer can still preset SPECLAB_PROJECT_VERSION. PROJECT_IS_TOP_LEVEL
 # is not available yet - it is set by project(), which needs this value.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(SPECLAB_PROJECT_VERSION "0.1.1" CACHE STRING "SpecLab project version")
+    set(SPECLAB_PROJECT_VERSION "0.1.2" CACHE STRING "SpecLab project version")
 elseif(NOT DEFINED SPECLAB_PROJECT_VERSION)
-    set(SPECLAB_PROJECT_VERSION "0.1.1")
+    set(SPECLAB_PROJECT_VERSION "0.1.2")
 endif()
 project(speclab VERSION ${SPECLAB_PROJECT_VERSION} DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
 
@@ -200,10 +200,11 @@ target_compile_features(speclab PUBLIC cxx_std_23)
 # translation units.
 #
 # Linking them PRIVATE keeps compile options and definitions out of consumers, and
-# $<BUILD_INTERFACE:...> keeps these helper targets out of the installed export set. The one
-# thing consumers do need - the link flags of an instrumented build (-fsanitize=..., --coverage)
-# - is not carried here: enable_sanitizers() puts it on speclab's own INTERFACE, which is
-# exported, so it also reaches consumers of the installed package.
+# $<BUILD_INTERFACE:...> keeps these helper targets out of the installed export set. What an
+# instrumented build does require downstream is not carried here: enable_sanitizers() puts it on
+# speclab itself, which is exported. That means -fsanitize=... for both compiling and linking
+# (an importer of an instrumented module must be instrumented too), and --coverage for linking
+# only.
 target_link_libraries(speclab PRIVATE
     $<BUILD_INTERFACE:speclab_options>
     $<BUILD_INTERFACE:speclab_warnings>
