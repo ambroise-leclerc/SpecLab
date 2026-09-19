@@ -44,9 +44,11 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
 
+    # Skipped on pull requests from forks: GitHub gives those a read-only token whatever this file
+    # declares, so the upload could only fail there. The scan itself still runs.
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       with:
         sarif_file: 'trivy-results.sarif'
 
@@ -123,10 +125,13 @@ jobs:
           -DSPECLAB_ENABLE_SANITIZERS=ON
         cmake --build build --parallel
 
+    # The analysis runs everywhere; the upload to Code Scanning is skipped on pull requests from
+    # forks, whose token is read-only whatever this file declares.
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:cpp"
+        upload: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'always' || 'never' }}
 
     - name: Medical Device SAST Report
       run: |
