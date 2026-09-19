@@ -404,79 +404,36 @@ jobs:
         fi
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         
-        # Generate release notes
-        cat > release-notes.md << EOF
-        # SpecLab Medical Device Testing Framework $VERSION
-        
-        ## 🏥 Medical Device Compliance
-        This release has been validated for medical device software development:
-        - ✅ **IEC 62304:2015** - Software Lifecycle Processes
-        - ✅ **ISO 14971:2019** - Risk Management for Medical Devices  
-        - ✅ **FDA 21 CFR Part 820** - Quality System Regulation
-        - ✅ **ISO 13485:2016** - Quality Management Systems
-        
-        ## 🚀 Key Features
-        - **C++23 Modules**: Modern zero-dependency architecture
-        - **Medical Device Testing**: Pulse oximeter example with full validation
-        - **BDD Syntax**: Given-When-Then readable test scenarios
-        - **Requirements Traceability**: CSV/HTML traceability matrix export
-        - **Multi-threaded Testing**: High-performance test execution
-        - **Compliance Reporting**: Automated regulatory documentation
-        
-        ## 🛠️ Platform Support
-        - **Windows 10+**: MSVC 17.10+ (Visual Studio 2022 v17.10+)
-        - **Linux**: GCC 16.1+ or Clang 20+
-        - **CMake 4.0+**: Required for C++23 \`import std\` support
-        
-        ## 📦 Release Packages
-        Download the appropriate package for your platform:
-        - **Windows x64**: \`SpecLab-$VERSION-windows-x64.zip\`
-        - **Windows x86**: \`SpecLab-$VERSION-windows-x86.zip\`
-        - **Linux x64**: \`SpecLab-$VERSION-linux-x64.tar.gz\`
-        
-        ## 🧪 Medical Device Examples
-        - **Pulse Oximeter (Class B)**: Complete medical device implementation
-        - **6 SRS Requirements**: Fully traceable requirements coverage
-        - **Safety Critical Testing**: Critical SpO2 detection and alerts
-        - **Hardware Fault Detection**: Probe disconnection and signal quality
-        
-        ## 📋 Validation Status
-        All packages have been validated through automated CI/CD pipelines including:
-        - Medical device compliance testing
-        - Cross-platform compatibility verification
-        - Performance benchmarking
-        - Security analysis
-        
-        ## 🔧 Quick Start
-        \`\`\`cpp
-        import speclab;
-        using namespace speclab::medical;
-        
-        // Create medical device test
-        auto spo2Test = MedicalTest("SPO2_001", "DEVICE_ID", "SpO2Monitor")
-            .RiskLevel(RiskLevel::High)
-            .SafetyClass(SafetyClass::ClassB)
-            .SafetyCriticalAssertion("SpO2 within normal range", 
-                []() { return measureSpO2() >= 95.0; });
-        
-        auto result = spo2Test.ExecuteMedical();
-        \`\`\`
-        
-        ## 📚 Documentation
-        - [Getting Started Guide](docs/getting-started.md)
-        - [Medical Device Compliance](docs/compliance/)
-        - [API Reference](docs/api/)
-        - [Examples](examples/)
-        
-        ---
-        **Ready for medical device software development and regulatory validation.**
-        EOF
+        # Release notes come from this version's CHANGELOG.md section, not from a fixed template.
+        # The template this replaces claimed IEC 62304 / ISO 14971 / FDA "validation", linked to
+        # documentation that does not exist, and said nothing about the release. Failing when the
+        # section is missing enforces the rule in AGENTS.md: the CHANGELOG entry lands before the tag.
+        PKG_VERSION=${VERSION#v}
+        awk -v heading="## [${PKG_VERSION}]" '
+          index($0, heading) == 1 { found = 1; next }
+          found && /^## \[/ { exit }
+          found { print }
+        ' CHANGELOG.md > changelog-section.md
+        if ! grep -q '[^[:space:]]' changelog-section.md; then
+          echo "::error::CHANGELOG.md has no '## [${PKG_VERSION}]' section. Add it (in a PR) before tagging."
+          exit 1
+        fi
+        {
+          echo "# SpecLab ${VERSION}"
+          cat changelog-section.md
+          echo
+          echo "## Important"
+          echo
+          echo "SpecLab is an **experimental** project. Its compliance features are conceptual and educational: using it does not make software compliant with IEC 62304, ISO 13485 or ISO 14971, and it is not recommended for production use."
+          echo
+          echo "**Release tags are immutable.** \`${VERSION}\` points at \`${GITHUB_SHA::7}\` and will not be moved. Each package has a matching SHA-256 checksum file. The packages were built by [this workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+        } > release-notes.md
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.get_info.outputs.version }}
-        name: "SpecLab Medical Device Framework ${{ steps.get_info.outputs.version }}"
+        name: "SpecLab ${{ steps.get_info.outputs.version }}"
         body_path: release-notes.md
         files: |
           release-packages/**/*
