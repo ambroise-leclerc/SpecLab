@@ -132,7 +132,7 @@ include("${SPECLAB_CMAKE_DIR}/StandardProjectSettings.cmake")
 include("${SPECLAB_CMAKE_DIR}/Cache.cmake")
 include("${SPECLAB_CMAKE_DIR}/CompilerSettings.cmake")
 include("${SPECLAB_CMAKE_DIR}/Linker.cmake")
-include("${SPECLAB_CMAKE_DIR}/CompilerWarnings.cmake")
+include("${SPECLAB_CMAKE_DIR}/CompilerWarnings.cmake")  # declares SPECLAB_WARNINGS_AS_ERRORS; keep before StaticAnalyzers
 include("${SPECLAB_CMAKE_DIR}/Sanitizers.cmake")
 include("${SPECLAB_CMAKE_DIR}/StaticAnalyzers.cmake")
 

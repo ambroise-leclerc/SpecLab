@@ -30,7 +30,24 @@ set(CMAKE_CXX_COMPILER "${_speclab_llvm_root}/bin/clang++" CACHE FILEPATH "" FOR
 set(CMAKE_AR "${_speclab_llvm_root}/bin/llvm-ar" CACHE FILEPATH "" FORCE)
 set(CMAKE_RANLIB "${_speclab_llvm_root}/bin/llvm-ranlib" CACHE FILEPATH "" FORCE)
 
+# CMAKE_CXX_FLAGS_INIT only seeds CMAKE_CXX_FLAGS on the first configure of a build tree. When
+# CMAKE_CXX_FLAGS already exists - passed with -D, or kept by a reused build tree - the _INIT value
+# is ignored, and a compile without libc++ would reject `import std` even though the manifest
+# below is found. So make sure the flag is in the effective value, and refuse a conflicting
+# standard library rather than silently mixing two.
 set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
+if(DEFINED CMAKE_CXX_FLAGS)
+    if(CMAKE_CXX_FLAGS MATCHES "-stdlib=([^ ]+)")
+        if(NOT CMAKE_MATCH_1 STREQUAL "libc++")
+            message(FATAL_ERROR
+                "CMAKE_CXX_FLAGS selects -stdlib=${CMAKE_MATCH_1}, but this toolchain needs libc++: "
+                "libc++ is the standard library whose std module `import std` uses here.")
+        endif()
+    else()
+        string(STRIP "${CMAKE_CXX_FLAGS} -stdlib=libc++" _speclab_cxx_flags)
+        set(CMAKE_CXX_FLAGS "${_speclab_cxx_flags}" CACHE STRING "Flags used by the CXX compiler during all build types." FORCE)
+    endif()
+endif()
 
 # Where Debian/Ubuntu put `libc++.modules.json` is not fixed across LLVM packagings, so search the
 # layouts that exist rather than asserting one.
