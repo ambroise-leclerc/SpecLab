@@ -9,9 +9,6 @@ import speclab.core.testresult;
 
 export namespace speclab {
 
-    // Forward declarations from functionalapi to avoid circular dependency
-    template<typename T> class ParameterizedTestBuilder;
-
     /**
      * @brief Requirement builder for traceability and compliance
      */

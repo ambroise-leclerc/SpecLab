@@ -417,10 +417,100 @@ export namespace speclab {
     };
 
     /**
+     * @brief Given/When/Then steps that share a `State` object
+     *
+     * With plain Test(), steps are void() callables, so anything a Then needs from a When has to
+     * be kept in an object the lambdas capture, typically a std::shared_ptr to a local struct.
+     * StatefulTestBuilder owns that object: each step receives it by reference, and it lives as
+     * long as the builder, so it outlives Execute().
+     *
+     *     struct State { int sum{0}; };
+     *     auto result = speclab::Test<State>("ADD-001")
+     *         .When("2 and 3 are added", [](State& s) { s.sum = 2 + 3; })
+     *         .Then("the sum is 5", [](const State& s) { Assertions::assertEqual(5, s.sum); })
+     *         .Execute();
+     *
+     * Steps that do not need the state can still be written as void() callables.
+     */
+    template<typename State>
+    class StatefulTestBuilder {
+    public:
+        using StateStepFunction = std::function<void(State&)>;
+
+        StatefulTestBuilder(std::string_view testId, State initial)
+            : builder_(testId), state_(std::make_shared<State>(std::move(initial))) {}
+
+        StatefulTestBuilder& Given(std::string_view description, StateStepFunction func) {
+            builder_.Given(description, bind(std::move(func)));
+            return *this;
+        }
+        StatefulTestBuilder& Given(std::string_view description, StepFunction func) {
+            builder_.Given(description, std::move(func));
+            return *this;
+        }
+
+        StatefulTestBuilder& When(std::string_view description, StateStepFunction func) {
+            builder_.When(description, bind(std::move(func)));
+            return *this;
+        }
+        StatefulTestBuilder& When(std::string_view description, StepFunction func) {
+            builder_.When(description, std::move(func));
+            return *this;
+        }
+
+        StatefulTestBuilder& Then(std::string_view description, StateStepFunction func) {
+            builder_.Then(description, bind(std::move(func)));
+            return *this;
+        }
+        StatefulTestBuilder& Then(std::string_view description, StepFunction func) {
+            builder_.Then(description, std::move(func));
+            return *this;
+        }
+
+        StatefulTestBuilder& And(std::string_view description, StateStepFunction func) {
+            builder_.And(description, bind(std::move(func)));
+            return *this;
+        }
+        StatefulTestBuilder& And(std::string_view description, StepFunction func) {
+            builder_.And(description, std::move(func));
+            return *this;
+        }
+
+        StatefulTestBuilder& SetEnabled(bool enabled) {
+            builder_.SetEnabled(enabled);
+            return *this;
+        }
+
+        speclab::core::TestResult Execute() { return builder_.Execute(); }
+
+        /// The shared state, e.g. to inspect it after Execute().
+        [[nodiscard]] const State& state() const noexcept { return *state_; }
+
+        [[nodiscard]] const TestBuilder& builder() const noexcept { return builder_; }
+
+    private:
+        StepFunction bind(StateStepFunction func) const {
+            return [state = state_, step = std::move(func)] { step(*state); };
+        }
+
+        TestBuilder builder_;
+        std::shared_ptr<State> state_;
+    };
+
+    /**
      * @brief Factory function to create a simple test
      */
     TestBuilder Test(std::string_view testId) {
         return TestBuilder(testId);
+    }
+
+    /**
+     * @brief Factory function to create a test whose steps share a `State` (see StatefulTestBuilder)
+     * @param initial The state's starting value; value-initialised by default
+     */
+    template<typename State>
+    StatefulTestBuilder<State> Test(std::string_view testId, State initial = State{}) {
+        return StatefulTestBuilder<State>(testId, std::move(initial));
     }
     
     /**

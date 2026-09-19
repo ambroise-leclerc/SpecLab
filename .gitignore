@@ -56,6 +56,7 @@ cmake_install.cmake
 !CMakeLists.txt
 !cmake/*.cmake
 !cmake/toolchains/*.cmake
+!tests/*.cmake
 
 # C++23 Module files
 *.ifc

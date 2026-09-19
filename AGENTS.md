@@ -104,23 +104,35 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-Run the only verifiable artifacts (example binaries):
+Run the self-tests, then the examples:
 
 ```bash
+ctest --test-dir build --output-on-failure
 ./build/examples/basic_example
 ./build/examples/pulse_oximeter_example
 ```
 
-CI runs exactly these two executables as its "test" step.
+CI does all three on every platform leg (`ci.yml`, `-DSPECLAB_BUILD_TESTS=ON`).
 
-### Tests are effectively disabled
+### Self-tests (`tests/`)
 
-Despite `README.md` saying `ctest` runs tests, `CMakeLists.txt` gates the
-`tests/` subdirectory with `if(SPECLAB_BUILD_TESTS AND FALSE)` and
-`tests/CMakeLists.txt` is a stub (`# Tests will be added here`). There is no
-test target today. **Do not claim `ctest` validates anything; no tests are
-registered.** When adding real tests, drop the `AND FALSE` guard and populate
-`tests/CMakeLists.txt`. Also note CI runs with `-DSPECLAB_BUILD_TESTS=OFF`.
+- `SPECLAB_BUILD_TESTS` defaults to `PROJECT_IS_TOP_LEVEL`, so consumers that add SpecLab as a
+  subproject do not build them.
+- `speclab_selftests` is SpecLab tested with its own tools. Each scenario is a `speclab::Register`
+  object in `AssertionTests.cpp`, `ChecksTests.cpp` or `FunctionalApiTests.cpp`, and `main` is
+  `speclab::runMain`. `DiscoverScenarios.cmake` (loaded through `TEST_INCLUDE_FILES`) registers
+  **one CTest test per scenario** from `--list-tests`, with its labels, so adding a scenario needs
+  no CMake change.
+- `speclab_discovery_fixture` has one passing and one failing scenario. The `contract.*` tests run
+  it through `ExpectRun.cmake`, which checks the exit code **and** the exact output of
+  `--list-tests`, `--run=` and a full run. Don't replace them with `WILL_FAIL` or
+  `PASS_REGULAR_EXPRESSION`: CTest cannot check both at once with those.
+- A scenario that checks a *failing* inner test builds the inner `Test`, calls `Execute()`, then
+  asserts on the returned `TestResult` in an outer `Then`. Anything a Then needs is captured by
+  value.
+- `.gitignore` ignores `*.cmake`; `tests/*.cmake` has an exception, like `cmake/` and
+  `cmake/toolchains/`. A new `.cmake` file elsewhere needs its own exception, or it never reaches CI.
+- The self-tests don't cover the class-based API, the requirement registry or the reporters yet.
 
 ### Examples that exist but are NOT built
 
@@ -151,7 +163,8 @@ actually present under `include/speclab/`:
   `RequirementAPI`, `FunctionalAPI`
 - `medical/`: `MedicalTestCase`, `ComplianceValidator`, `MedicalFunctionalAPI`
 - `reporters/`: `Reporter`, `ConsoleReporter`
-- `runners/`: `TestRunner`
+- `runners/`: `TestRunner`, `Discovery` (`Register`, `registry()`, `runMain`: the
+  `--list-tests` / `--run=` contract, byte-compatible with MduX's `SpecLabBridge.hpp`)
 - `SpecLab.cppm` (top-level aggregator)
 
 Do not invent imports from `speclab.cppm`, `validators/`, or `utils/` — none
@@ -173,7 +186,20 @@ framework-emitted, not tests you register.
   `configure_speclab_version` (see `cmake/CompilerSettings.cmake`), for SpecLab's
   own translation units only. Don't hardcode them from the docs.
 - No `ASSERT_*`/`FAIL` macros exist: a `#define` in a module interface unit is not
-  exported by `import speclab;`. Use `speclab::core::Assertions::…` directly.
+  exported by `import speclab;`. Use `speclab::core::Assertions::…` directly, `require(cond,
+  "fmt {}", args…)` for a formatted message, and `speclab::core::Checks` to collect several
+  failures.
+- `AssertionFailure::formatLocation()` reports `file.cpp:line:column`, with the file name only, so
+  failure output is the same on every machine. `location()` keeps the full path. Tests assert on
+  that format.
+- In `runners/Discovery.cppm`, `registry()` and `runMain` are deliberately not `inline`. As
+  non-inline functions attached to the module they have one definition, so there is one registry
+  per program.
+- A GCC 16 modules bug has been seen in a consumer (MduX `ml_spec`, `GeneratedModelTests.cpp`).
+  Once its test bridge forwarded `main` to `speclab::runMain`, that translation unit failed with
+  "use of deleted function ~ModelPackage()". A single local
+  `std::println(std::cout, "{}", std::string)` instantiation in the including TU avoids it. Moving
+  the definitions out of the module interface does **not** help: this was tested.
 - New `.cppm` modules must be added to the `target_sources` `FILE_SET` list in
   root `CMakeLists.txt` or they will not be compiled/exported.
 - `*.mod` is `.gitignore`'d (Fortran convention), but C++ module BMI files
