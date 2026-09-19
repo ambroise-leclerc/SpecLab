@@ -18,6 +18,15 @@ happened once, to v0.1.0 (see below).
   compilers are refused as well, and an upstream Clang other than 21.1.8 gets a warning that it is
   untested.
 
+### Changed
+- README rewritten against the actual API. Every code example is compiled with
+  `-Wall -Wextra -Werror` and run before publication. It has per-platform CI badges, a supported
+  platforms table, the real CMake options and target name (`speclab::speclab`), consumption with
+  FetchContent pinned by SHA, and a "Current limitations" section. Examples of APIs that do not
+  exist (`Assert::…`, `.Parameters(…)`, `.TraceabilityMatrix(…)`) are gone. The
+  `Requirement`/`Feature`/`IEC62304Process` builders are documented as metadata-only, since their
+  `Execute()` runs no test.
+
 ### Fixed
 - Sanitizer builds of consumers that do `import speclab;`. v0.1.1 compiled SpecLab with
   `-fsanitize=...` but no longer passed that flag to consumers. With GCC 16, a translation unit
