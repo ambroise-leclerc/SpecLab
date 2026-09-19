@@ -15,13 +15,6 @@ function(speclab_add_selftest_executable target)
     set_target_properties(${target} PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         target_compile_options(${target} PRIVATE /experimental:module /std:c++latest)
-        # C5046 ("Symbol involving type with internal linkage not defined"): MSVC 19.44 (VS 2022)
-        # emits it for std::function / std::shared_ptr instantiations from `import std` over types
-        # with internal linkage - here, the lambdas in each file's anonymous namespace and the
-        # function-local State structs. /WX turns it into an error. VS 18's compiler no longer
-        # emits it for the same code, and the link step would fail if a symbol really were
-        # missing, so it is disabled for the test executables only, not for libspeclab.
-        target_compile_options(${target} PRIVATE /wd5046)
     endif()
 endfunction()
 
