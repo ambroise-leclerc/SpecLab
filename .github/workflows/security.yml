@@ -10,6 +10,13 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+# Read-only by default; the repository's default workflow token is read-only too. The two jobs
+# that publish SARIF results to the Security tab (Trivy's upload-sarif, CodeQL's analyze) get
+# security-events: write, and nothing else does. Without it both failed on every run with
+# "Resource not accessible by integration".
+permissions:
+  contents: read
+
 jobs:
   # ============================================================================
   # Security Vulnerability Scanning
@@ -17,6 +24,9 @@ jobs:
   security-scan:
     name: Security Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     
     steps:
     - name: Checkout code
@@ -25,7 +35,9 @@ jobs:
         fetch-depth: 0
 
     - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+      # Pinned by commit, not @master: this job now holds security-events: write, and a moving
+      # branch would let an unreviewed upstream change run with it.
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -74,6 +86,10 @@ jobs:
   sast-analysis:
     name: Static Application Security Testing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read  # CodeQL reads workflow run metadata
     container:
       image: gcc:16.1.0
       options: --user root
