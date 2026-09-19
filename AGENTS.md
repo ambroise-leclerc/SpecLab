@@ -64,6 +64,19 @@ are easy to get wrong or that contradict the docs.
 - Settings that write cache entries (`CMAKE_BUILD_TYPE`,
   `CMAKE_EXPORT_COMPILE_COMMANDS`) are applied only when top-level.
 
+## Releases
+
+- A release is a `vX.Y.Z` tag pushed on `develop`. `.github/workflows/release.yml`
+  builds the packages and creates the GitHub release. Bump `SPECLAB_PROJECT_VERSION`'s
+  default in `CMakeLists.txt` and add a `CHANGELOG.md` entry in a PR *before*
+  tagging, so that the tagged sources declare their own version.
+- **Tags are immutable**: never move or re-push a published tag, and ship a fix as a
+  new patch release. MduX pins SpecLab by SHA and treats the tag as documentation;
+  v0.1.0 was moved once and MduX recorded it as a supplier risk.
+- Before tagging, dry-run the release workflow on `develop`
+  (`gh workflow run release.yml --ref develop`). It builds every package but creates no
+  release, because the publish jobs only run on a tag push.
+
 ## Build / verify commands
 
 Configure from a `build/` subdir (in-source builds are blocked by
