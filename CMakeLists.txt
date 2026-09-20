@@ -32,10 +32,13 @@ include(cmake/PreventInSourceBuilds.cmake)
 # As a subproject, a CACHE entry would land in the consumer's cache; a plain variable is scoped
 # to this directory, and a consumer can still preset SPECLAB_PROJECT_VERSION. PROJECT_IS_TOP_LEVEL
 # is not available yet - it is set by project(), which needs this value.
+# One literal to bump per release: both branches below read it, so a top-level build and a
+# subproject build can never declare different versions of the same sources.
+set(SPECLAB_VERSION_DEFAULT "0.4.0")
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(SPECLAB_PROJECT_VERSION "0.4.0" CACHE STRING "SpecLab project version")
+    set(SPECLAB_PROJECT_VERSION "${SPECLAB_VERSION_DEFAULT}" CACHE STRING "SpecLab project version")
 elseif(NOT DEFINED SPECLAB_PROJECT_VERSION)
-    set(SPECLAB_PROJECT_VERSION "0.3.0")
+    set(SPECLAB_PROJECT_VERSION "${SPECLAB_VERSION_DEFAULT}")
 endif()
 project(speclab VERSION ${SPECLAB_PROJECT_VERSION} DESCRIPTION "Modern C++23 Modules Testing Framework for Medical Devices" HOMEPAGE_URL "https://github.com/ambroise-leclerc/speclab" LANGUAGES CXX)
 
