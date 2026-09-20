@@ -106,4 +106,35 @@ const speclab::Register parameterized{"ParameterizedTest yields one result per p
         .Execute();
 }};
 
+/// An RAII-like handle: deleting the copy constructor suppresses the move constructor too.
+struct Handle {
+    Handle() = default;
+    Handle(const Handle&) = delete;
+    Handle& operator=(const Handle&) = delete;
+    int touched{0};
+};
+
+/// Declared here rather than inside the scenario: MSVC 19.44 cannot instantiate `Test<State>`
+/// for a function-local type.
+struct ImmovableState {
+    Handle handle;
+};
+
+const speclab::Register immovableState{"Test<State> accepts a state that is neither copyable nor movable",
+                                       "unit", [] {
+    // `Test<State>(id)` used to materialise and move a default-constructed value (issue #32); it
+    // now builds the shared state in place, so this compiles at all - which is half the assertion.
+    // The steps prove the state is shared, which is the other half.
+    const speclab::core::TestResult inner = speclab::Test<ImmovableState>("inner-immovable")
+        .Given("a state that cannot be moved", [](ImmovableState& state) { state.handle.touched = 7; })
+        .Then("the step sees what the previous step wrote",
+              [](ImmovableState& state) { Assertions::assertEqual(7, state.handle.touched); })
+        .Execute();
+    return speclab::Test("immovable-state")
+        .Then("the inner test passed", [inner] {
+            Assertions::assertTrue(inner.passed(), "the immovable-state test passed");
+        })
+        .Execute();
+}};
+
 }  // namespace
