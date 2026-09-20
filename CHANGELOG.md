@@ -7,6 +7,20 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
+## [0.4.0] - 2026-09-20
+
+A minor release: it adds a public overload. Nothing that compiles against 0.3.0 stops compiling.
+
+### Added
+- `speclab::Test<State>(id)` is now its own overload, and `StatefulTestBuilder` gained a
+  constructor that builds the shared state in place. A `State` that is neither copyable nor
+  movable - one holding an RAII handle such as a scoped temporary directory, a file handle or a
+  lock - can now be used (#32). Previously the single factory's `State initial = State{}` default
+  argument was materialised and then moved, so the state had to be movable even in the form that
+  only ever default-constructs it. The two-argument `Test<State>(id, initial)` keeps its by-value
+  parameter, where moving is unavoidable.
+- A self-test with a deliberately immovable state, which fails to compile without the overload.
+
 ## [0.3.0] - 2026-09-20
 
 A minor release, not a patch: it adds public API and changes the signatures of
