@@ -23,6 +23,7 @@ speclab_add_selftest_executable(speclab_selftests
     AssertionTests.cpp
     ChecksTests.cpp
     FunctionalApiTests.cpp
+    RequirementApiTests.cpp
 )
 speclab_add_selftest_executable(speclab_discovery_fixture DiscoveryFixture.cpp)
 

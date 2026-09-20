@@ -6,6 +6,8 @@ export module speclab.core.requirementapi;
 
 import std;
 import speclab.core.testresult;
+import speclab.core.functionalapi;
+import speclab.core.requirements;
 
 export namespace speclab {
 
@@ -114,21 +116,73 @@ export namespace speclab {
         
         /**
          * @brief Associate a test ID with this requirement for traceability
+         *
+         * For a test that runs elsewhere. The link is registered when Execute() runs, so the
+         * traceability matrix and the coverage gate see it, but this builder does not run it.
          */
         RequirementBuilder& AssociateTest(std::string_view testId) {
             tests_.push_back(std::string(testId));
             return *this;
         }
+
+        /**
+         * @brief Add a test to this requirement, and return its builder
+         *
+         *     auto requirement = speclab::Requirement("REQ-100", "Boots in under 250 ms")
+         *                            .RiskLevel("HIGH");
+         *     requirement.Test("T_BootTime")
+         *         .When("the device boots", [] { ... })
+         *         .Then("it took less than 250 ms", [] { ... });
+         *     const auto results = requirement.Execute();
+         *
+         * Keep the requirement in a variable: the chained calls return the TestBuilder, and
+         * Execute() is what runs the tests and attaches the requirement's metadata to their
+         * results. The returned reference stays valid when further tests are added (std::deque).
+         */
+        TestBuilder& Test(std::string_view testId) {
+            testBuilders_.emplace_back(testId);
+            tests_.push_back(std::string(testId));
+            return testBuilders_.back();
+        }
+
+        /**
+         * @brief Enable/disable this requirement's tests
+         */
+        RequirementBuilder& SetEnabled(bool enabled) {
+            enabled_ = enabled;
+            return *this;
+        }
         
         /**
-         * @brief Execute all tests associated with this requirement
+         * @brief Register this requirement, run its tests, and annotate their results
+         *
+         * Never returns an empty vector: a requirement with no test of its own yields one Blocked
+         * result naming it. An empty vector would read as "nothing failed" to any caller counting
+         * failures, which is the worst way for a test framework to be wrong.
          */
         std::vector<speclab::core::TestResult> Execute() {
+            registerForTraceability();
+
             std::vector<speclab::core::TestResult> results;
-            
-            // This is a simplified implementation
-            // In practice, would execute all stored test builders
-            
+
+            if (!enabled_) {
+                results.push_back(syntheticResult(speclab::core::TestStatus::Skipped,
+                                                  "Requirement disabled"));
+            } else if (testBuilders_.empty()) {
+                results.push_back(syntheticResult(
+                    speclab::core::TestStatus::Blocked,
+                    tests_.empty()
+                        ? "No test attached to this requirement"
+                        : std::format("No test attached to this requirement; {} test id(s) "
+                                      "associated for traceability only",
+                                      tests_.size())));
+            } else {
+                results.reserve(testBuilders_.size());
+                for (TestBuilder& test : testBuilders_) {
+                    results.push_back(test.Execute());
+                }
+            }
+
             // Add requirement metadata to all results
             for (auto& result : results) {
                 result.addMetadata("requirement_id", requirementId_);
@@ -165,11 +219,14 @@ export namespace speclab {
                 for (const auto& [key, value] : metadata_) {
                     result.addMetadata("req_" + key, value);
                 }
+
+                // Traceability on the result itself, as TestSuite does for registered links.
+                result.requirementIds.push_back(requirementId_);
             }
-            
+
             return results;
         }
-        
+
         // Getters for introspection
         const std::string& getRequirementId() const noexcept { return requirementId_; }
         const std::string& getDescription() const noexcept { return description_; }
@@ -179,8 +236,33 @@ export namespace speclab {
         bool requiresAudit() const noexcept { return requiresAudit_; }
         bool requiresValidation() const noexcept { return requiresValidation_; }
         bool isEnabled() const noexcept { return enabled_; }
-        
+
     private:
+        /// Puts this requirement and its test links in the registry, so that
+        /// ExportTraceMatrixCSV/HTML and the REQUIREMENT_COVERAGE gate see them.
+        void registerForTraceability() const {
+            speclab::core::RegisterRequirement({
+                .id = requirementId_,
+                .description = description_,
+                .riskLevel = riskLevel_,
+                .safetyClass = safetyClass_,
+                .requiresAudit = requiresAudit_,
+                .requiresValidation = requiresValidation_,
+                .source = complianceStandard_,
+            });
+            for (const std::string& testId : tests_) {
+                speclab::core::LinkTestRequirement(testId, requirementId_);
+            }
+        }
+
+        /// A result that stands for the requirement itself rather than for one of its tests.
+        [[nodiscard]] speclab::core::TestResult syntheticResult(speclab::core::TestStatus status,
+                                                                std::string_view message) const {
+            speclab::core::TestResult result(status, message);
+            result.testId = requirementId_;
+            return result;
+        }
+
         std::string requirementId_;
         std::string description_;
         std::string safetyClass_;
@@ -197,7 +279,10 @@ export namespace speclab {
         
         std::unordered_map<std::string, std::string> resourceConstraints_;
         std::unordered_map<std::string, std::string> metadata_;
-        std::vector<std::string> tests_;  // Store test IDs for traceability
+        std::vector<std::string> tests_;  // Test IDs for traceability, run here or elsewhere
+        // std::deque, not std::vector: Test() hands out references to its elements, and a vector
+        // would invalidate them as soon as another test is added.
+        std::deque<TestBuilder> testBuilders_;
     };
 
     /**
@@ -280,6 +365,17 @@ export namespace speclab {
                 return allResults;
             }
             
+            if (requirements_.empty()) {
+                // Not an empty vector: a feature with no requirement must not look like a feature
+                // whose tests all passed.
+                speclab::core::TestResult featureResult(speclab::core::TestStatus::Blocked,
+                                                        "No requirement attached to this feature");
+                featureResult.testId = featureName_;
+                featureResult.addMetadata("feature_name", featureName_);
+                allResults.push_back(std::move(featureResult));
+                return allResults;
+            }
+
             // Execute all requirements
             for (auto& requirement : requirements_) {
                 auto requirementResults = requirement.Execute();
@@ -311,7 +407,7 @@ export namespace speclab {
         const std::string& getFeatureName() const noexcept { return featureName_; }
         const std::string& getDescription() const noexcept { return description_; }
         const std::string& getCategory() const noexcept { return category_; }
-        const std::vector<RequirementBuilder>& getRequirements() const noexcept { return requirements_; }
+        const std::deque<RequirementBuilder>& getRequirements() const noexcept { return requirements_; }
         bool isEnabled() const noexcept { return enabled_; }
         
     private:
@@ -323,7 +419,9 @@ export namespace speclab {
         bool enabled_;
         
         std::unordered_map<std::string, std::string> metadata_;
-        std::vector<RequirementBuilder> requirements_;
+        // std::deque for the same reason as RequirementBuilder's tests: Requirement() returns a
+        // reference into this container, and a vector would invalidate it on the next insertion.
+        std::deque<RequirementBuilder> requirements_;
     };
 
     /**
@@ -375,7 +473,17 @@ export namespace speclab {
          */
         std::vector<speclab::core::TestResult> Execute() {
             std::vector<speclab::core::TestResult> allResults;
-            
+
+            if (requirements_.empty()) {
+                speclab::core::TestResult processResult(
+                    speclab::core::TestStatus::Blocked,
+                    "No requirement attached to this lifecycle process");
+                processResult.testId = toString(process_);
+                processResult.addMetadata("iec62304_process", toString(process_));
+                allResults.push_back(std::move(processResult));
+                return allResults;
+            }
+
             for (auto& requirement : requirements_) {
                 auto results = requirement.Execute();
                 
@@ -418,7 +526,8 @@ export namespace speclab {
         std::string complianceStandard_;
         bool enabled_;
         
-        std::vector<RequirementBuilder> requirements_;
+        // std::deque: Requirement() returns a reference into this container (see FeatureBuilder).
+        std::deque<RequirementBuilder> requirements_;
     };
 
     /**

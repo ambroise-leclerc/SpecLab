@@ -180,6 +180,15 @@ Suite execution auto-appends synthetic `REQUIREMENT_COVERAGE` (and, when
 `abortOnCriticalGaps` is set, `REQUIREMENT_COVERAGE_PRE`) results — these are
 framework-emitted, not tests you register.
 
+`speclab::Requirement(…)`, `Feature(…)` and `IEC62304Process(…)` (module
+`core/RequirementAPI.cppm`) execute the tests attached to them since #25, and register
+themselves and their links on `Execute()`. Keep the invariant their self-tests pin
+(`tests/RequirementApiTests.cpp`): **these builders never return an empty result list.** A
+requirement with no test returns `Blocked`, a disabled one `Skipped`, and an empty feature or
+lifecycle process `Blocked`. An empty vector reads as "nothing failed" to a caller counting
+failures, which is what #25 was about. They hand out references into their containers, so those
+are `std::deque`, not `std::vector`.
+
 ## Conventions that bite
 
 - `SPECLAB_VERSION_*` and `SPECLAB_MEDICAL_DEVICE_COMPLIANCE=1` are defined by

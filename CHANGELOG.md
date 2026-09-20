@@ -7,6 +7,25 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
+## [Unreleased]
+
+### Fixed
+- **The `Requirement`, `Feature` and `IEC62304Process` builders now run tests** (#25). Their
+  `Execute()` returned an empty vector: nothing ran, and a caller counting failures saw none, so a
+  suite that looked complete reported no failure. Now:
+  - `RequirementBuilder::Test(id)` attaches a test and returns its `TestBuilder`. `Execute()` runs
+    each one and returns its result, with the requirement's metadata and id attached.
+  - `Execute()` registers the requirement and its test links (including `AssociateTest` ids) in the
+    requirement registry, so `ExportTraceMatrixCSV/HTML` and the `REQUIREMENT_COVERAGE` gate see
+    them.
+  - A requirement with no test of its own returns one `Blocked` result instead of an empty list; a
+    disabled one returns `Skipped`. `Feature` and `IEC62304Process` report `Blocked` when they hold
+    no requirement.
+- `FeatureBuilder::Requirement()`, `IEC62304ProcessBuilder::Requirement()` and the new
+  `RequirementBuilder::Test()` return references into their containers, which are now `std::deque`.
+  With `std::vector`, adding the next requirement or test invalidated a reference the caller still
+  held.
+
 ## [0.2.0] - 2026-09-19
 
 ### Added

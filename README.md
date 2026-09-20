@@ -261,6 +261,45 @@ A `Requirement` has:
 
 Use stable IDs (`REQ-###`, `ALARM-001`).
 
+### Declaring tests under a requirement
+
+`speclab::Requirement(…)` attaches tests to a requirement directly. `Execute()` registers the
+requirement and its links, runs the tests, and returns one result per test with the requirement's
+metadata attached:
+
+```cpp
+// Keep the requirement in a variable: Test() returns the test's builder, and Execute() is what
+// runs the tests and attaches the requirement's metadata to their results.
+auto requirement = speclab::Requirement("SRS-001", "The monitor displays vital signs within 2 s")
+                       .RiskLevel("HIGH")
+                       .SafetyClass("CLASS_B")
+                       .HazardId("HAZ-001");
+
+requirement.Test("T_DISPLAY_RESPONSE")
+    .Given("a connected monitor", [] { /* connect() */ })
+    .When("vital signs arrive", [] { /* receive() */ })
+    .Then("the display updates within 2 s", [] {
+        const std::chrono::milliseconds elapsed{120};
+        Assertions::require(elapsed < std::chrono::seconds(2), "display took {}", elapsed);
+    });
+
+// A test that runs elsewhere: linked for traceability, not run here.
+requirement.AssociateTest("T_DISPLAY_PIXELS");
+
+for (const speclab::core::TestResult& result : requirement.Execute()) {
+    std::println("{}: {}", result.testId, speclab::core::toString(result.status));
+}
+std::print("{}", speclab::core::ExportTraceMatrixCSV());
+// RequirementID,RiskLevel,SafetyClass,RequiresValidation,RequiresAudit,TestIDs
+// SRS-001,HIGH,CLASS_B,true,true,T_DISPLAY_PIXELS,T_DISPLAY_RESPONSE
+```
+
+A requirement with **no test of its own never returns an empty result list**: it returns one
+`Blocked` result naming it, so a caller counting failures cannot mistake it for a requirement whose
+tests all passed. A disabled requirement (`SetEnabled(false)`) returns one `Skipped` result.
+`speclab::Feature(…)` and `speclab::IEC62304Process(…)` aggregate the results of their requirements,
+adding their own metadata, and report `Blocked` when they hold no requirement.
+
 - **Coverage gate.** Every suite execution appends a synthetic `REQUIREMENT_COVERAGE` result,
   which is why the suite above reports two results for one test. That result is:
   - `Passed` when every HIGH or CRITICAL requirement has at least one linked test;
@@ -341,10 +380,6 @@ The Visual Studio generator works only with MSVC, through MSVC's own `std` modul
 
 ## Current limitations
 
-- **The `speclab::Requirement(…)`, `Feature(…)` and `IEC62304Process(…)` builders only record
-  metadata.** Their `Execute()` runs no test and returns no result. For traceability that actually
-  gates, use the registry described above (`RegisterRequirement`, `LinkTestRequirement`,
-  `TestSuite`).
 - **The self-tests cover the functional API, the assertions, `Checks` and the runner contract, not
   yet the class-based API, the requirement registry or the reporters.** `examples/functional_api_examples.cpp`
   and `examples/requirements_example.cpp` are not built.
@@ -361,7 +396,7 @@ include/speclab/
 │   ├── TestCase.cppm            # Class-based test cases
 │   ├── TestSuite.cppm           # Suites, parallel execution, coverage gate
 │   ├── Requirements.cppm        # Requirement registry and traceability exports
-│   ├── RequirementAPI.cppm      # Requirement / Feature / IEC62304Process builders (metadata only)
+│   ├── RequirementAPI.cppm      # Requirement / Feature / IEC62304Process builders
 │   └── FunctionalAPI.cppm       # Test, Test<State>, ParameterizedTest, benchmarks
 ├── medical/
 │   ├── MedicalTestCase.cppm     # RiskLevel, SafetyClass, MedicalTestCase
@@ -419,7 +454,7 @@ organization's quality management system procedures.
 - [x] Windows, Linux (GCC and Clang) and macOS Apple Silicon in CI
 - [x] Self-tests run by `ctest` on every platform
 - [x] Collecting assertions (`Checks`), `require`, `Test<State>`, and test registration with a `--list-tests` / `--run=` runner
-- [ ] Requirement, Feature and IEC62304Process builders that execute their tests ([#25](https://github.com/ambroise-leclerc/SpecLab/issues/25))
-- [ ] Self-tests for the class-based API, the requirement registry and the reporters
+- [x] Requirement, Feature and IEC62304Process builders that execute their tests ([#25](https://github.com/ambroise-leclerc/SpecLab/issues/25))
+- [ ] Self-tests for the class-based API, `TestSuite`'s coverage gate and the reporters
 - [ ] Visual test reporting dashboard
 - [ ] Cryptographic audit trail signing
