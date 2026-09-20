@@ -334,7 +334,7 @@ and should be built with Ninja (see [Building SpecLab](#building-speclab)):
 include(FetchContent)
 FetchContent_Declare(speclab
     GIT_REPOSITORY https://github.com/ambroise-leclerc/SpecLab.git
-    GIT_TAG        <commit SHA of the release>  # e.g. the commit tagged v0.2.0
+    GIT_TAG        <commit SHA of the release>  # e.g. the commit tagged v0.3.0
 )
 set(SPECLAB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(speclab)

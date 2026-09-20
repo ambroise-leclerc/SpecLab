@@ -7,7 +7,17 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-20
+
+A minor release, not a patch: it adds public API and changes the signatures of
+`RequirementRegistry`'s accessors. The exported free functions of
+`speclab.core.requirements` are unchanged.
+
+### Added
+- `RequirementBuilder::Test(id)` and `RequirementBuilder::SetEnabled(bool)`.
+- `speclab::core::ClearRequirementTestLinks`, `NormalizeRiskLevel` and `NormalizeSafetyClass`.
+- A ThreadSanitizer CI leg (`linux-tsan`), which runs the self-tests with
+  `TSAN_OPTIONS=halt_on_error=1`.
 
 ### Fixed
 - **The `Requirement`, `Feature` and `IEC62304Process` builders now run tests** (#25). Their
