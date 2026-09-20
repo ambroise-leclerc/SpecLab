@@ -437,6 +437,11 @@ export namespace speclab {
     public:
         using StateStepFunction = std::function<void(State&)>;
 
+        /// Default-constructs the shared state in place, so a `State` that is neither copyable
+        /// nor movable - one holding an RAII handle, say - can still be used (issue #32).
+        explicit StatefulTestBuilder(std::string_view testId)
+            : builder_(testId), state_(std::make_shared<State>()) {}
+
         StatefulTestBuilder(std::string_view testId, State initial)
             : builder_(testId), state_(std::make_shared<State>(std::move(initial))) {}
 
@@ -505,11 +510,22 @@ export namespace speclab {
     }
 
     /**
-     * @brief Factory function to create a test whose steps share a `State` (see StatefulTestBuilder)
-     * @param initial The state's starting value; value-initialised by default
+     * @brief Factory function to create a test whose steps share a default-constructed `State`
+     *        (see StatefulTestBuilder)
+     *
+     * The state is constructed in place, so it need be neither copyable nor movable.
      */
     template<typename State>
-    StatefulTestBuilder<State> Test(std::string_view testId, State initial = State{}) {
+    StatefulTestBuilder<State> Test(std::string_view testId) {
+        return StatefulTestBuilder<State>(testId);
+    }
+
+    /**
+     * @brief Factory function to create a test whose steps share a `State` (see StatefulTestBuilder)
+     * @param initial The state's starting value, which is moved into the shared state
+     */
+    template<typename State>
+    StatefulTestBuilder<State> Test(std::string_view testId, State initial) {
         return StatefulTestBuilder<State>(testId, std::move(initial));
     }
     
