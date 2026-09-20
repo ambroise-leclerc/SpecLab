@@ -9,7 +9,10 @@ happened once, to v0.1.0 (see below).
 
 ## [0.4.0] - 2026-09-20
 
-A minor release: it adds a public overload. Nothing that compiles against 0.3.0 stops compiling.
+A minor release: it adds a public overload. Every *call* that compiled against 0.3.0 still
+compiles, but `speclab::Test<State>` is now an overload set rather than a single function, so
+naming it without calling it - `&speclab::Test<MyState>`, or binding it to `auto` - no longer
+deduces and needs an explicit function type. No in-tree code did that, and MduX does not either.
 
 ### Added
 - `speclab::Test<State>(id)` is now its own overload, and `StatefulTestBuilder` gained a
