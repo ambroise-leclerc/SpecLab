@@ -21,6 +21,16 @@ happened once, to v0.1.0 (see below).
   - A requirement with no test of its own returns one `Blocked` result instead of an empty list; a
     disabled one returns `Skipped`. `Feature` and `IEC62304Process` report `Blocked` when they hold
     no requirement.
+- The requirement registry is now locked. It is a process-wide singleton that `TestSuite` reads
+  from parallel test threads while `Requirement::Execute()` writes to it, which was a data race
+  on its `unordered_map`s (confirmed by ThreadSanitizer). Its accessors that used to return
+  pointers into those maps (`getRequirement`, `getRequirementsForTest`, `getAllRequirements`,
+  `getUncoveredHighRisk`, `getUncoveredCritical`) now return values; the free functions are
+  unchanged.
+- `RegisterRequirement` updates an existing record instead of keeping the first one. A risk level
+  raised between two registrations now reaches the coverage gate.
+- A **disabled** requirement is registered but its tests are no longer linked, so it cannot
+  satisfy `REQUIREMENT_COVERAGE` without anything having run.
 - `FeatureBuilder::Requirement()`, `IEC62304ProcessBuilder::Requirement()` and the new
   `RequirementBuilder::Test()` return references into their containers, which are now `std::deque`.
   With `std::vector`, adding the next requirement or test invalidated a reference the caller still

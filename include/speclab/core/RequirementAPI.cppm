@@ -161,7 +161,10 @@ export namespace speclab {
          * failures, which is the worst way for a test framework to be wrong.
          */
         std::vector<speclab::core::TestResult> Execute() {
-            registerForTraceability();
+            // A disabled requirement is registered, so the coverage gate still sees it, but its
+            // tests are not linked: they did not run, and a link would let a disabled requirement
+            // satisfy REQUIREMENT_COVERAGE without anything being verified.
+            registerForTraceability(enabled_);
 
             std::vector<speclab::core::TestResult> results;
 
@@ -238,9 +241,10 @@ export namespace speclab {
         bool isEnabled() const noexcept { return enabled_; }
 
     private:
-        /// Puts this requirement and its test links in the registry, so that
-        /// ExportTraceMatrixCSV/HTML and the REQUIREMENT_COVERAGE gate see them.
-        void registerForTraceability() const {
+        /// Puts this requirement in the registry, so that ExportTraceMatrixCSV/HTML and the
+        /// REQUIREMENT_COVERAGE gate see it. `linkTests` is false for a disabled requirement,
+        /// whose tests do not run.
+        void registerForTraceability(bool linkTests) const {
             speclab::core::RegisterRequirement({
                 .id = requirementId_,
                 .description = description_,
@@ -250,8 +254,10 @@ export namespace speclab {
                 .requiresValidation = requiresValidation_,
                 .source = complianceStandard_,
             });
-            for (const std::string& testId : tests_) {
-                speclab::core::LinkTestRequirement(testId, requirementId_);
+            if (linkTests) {
+                for (const std::string& testId : tests_) {
+                    speclab::core::LinkTestRequirement(testId, requirementId_);
+                }
             }
         }
 

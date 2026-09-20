@@ -112,6 +112,82 @@ const speclab::Register disabledIsSkipped{"A disabled requirement is Skipped and
         .Execute();
 }};
 
+const speclab::Register disabledIsNotCovered{"A disabled requirement does not satisfy the coverage gate", "unit", [] {
+    auto requirement = speclab::Requirement("REQ-DISABLED-COVER", "Disabled but CRITICAL")
+                           .RiskLevel("CRITICAL")
+                           .SetEnabled(false);
+    requirement.Test("T_DISABLED_COVER").Then("never runs", [] {});
+    requirement.Execute();
+
+    return speclab::Test("requirement-disabled-coverage")
+        .Then("it is registered as a requirement, but its test is not linked to it", [] {
+            Checks checks;
+            const std::vector<std::string> uncovered = speclab::core::GetUncoveredCriticalRequirementIds();
+            checks.expect(std::ranges::find(uncovered, "REQ-DISABLED-COVER") != uncovered.end(),
+                          "a disabled CRITICAL requirement is still an uncovered gap");
+            checks.expect(speclab::core::ExportTraceMatrixCSV().find("T_DISABLED_COVER") == std::string::npos,
+                          "its test is not linked");
+            checks.raise();
+        })
+        .Execute();
+}};
+
+const speclab::Register reregistration{"Re-executing a requirement updates its registered metadata", "unit", [] {
+    speclab::Requirement("REQ-REREGISTER", "First registration").RiskLevel("LOW").Execute();
+    auto raised = speclab::Requirement("REQ-REREGISTER", "Raised to CRITICAL").RiskLevel("CRITICAL");
+    raised.Execute();
+
+    return speclab::Test("requirement-reregistration")
+        .Then("the registry holds the newer risk level, so the gate sees the gap", [] {
+            Checks checks;
+            const std::vector<std::string> uncovered = speclab::core::GetUncoveredCriticalRequirementIds();
+            checks.expect(std::ranges::find(uncovered, "REQ-REREGISTER") != uncovered.end(),
+                          "the raised risk level reaches the coverage gate");
+            checks.expect(speclab::core::ExportTraceMatrixCSV().find("REQ-REREGISTER,CRITICAL") != std::string::npos,
+                          "the matrix shows CRITICAL, not the first LOW record");
+            checks.raise();
+        })
+        .Execute();
+}};
+
+const speclab::Register concurrentRegistry{"The registry survives concurrent registration and reads", "unit", [] {
+    // The registry is a process-wide singleton that TestSuite reads from parallel test threads
+    // while Requirement::Execute() writes to it. Without locking this is a data race on
+    // unordered_map; this scenario exercises both sides at once.
+    constexpr int threadCount = 8;
+    constexpr int perThread = 25;
+    std::vector<std::jthread> workers;
+    workers.reserve(threadCount);
+    for (int t = 0; t < threadCount; ++t) {
+        workers.emplace_back([t] {
+            for (int i = 0; i < perThread; ++i) {
+                auto requirement = speclab::Requirement(std::format("REQ-CONC-{}-{}", t, i), "concurrent")
+                                       .RiskLevel("HIGH");
+                requirement.Test(std::format("T_CONC_{}_{}", t, i)).Then("passes", [] {});
+                requirement.Execute();
+                (void)speclab::core::ExportTraceMatrixCSV();
+                (void)speclab::core::TestRiskScore(std::format("T_CONC_{}_{}", t, i));
+            }
+        });
+    }
+    workers.clear();  // joins
+
+    return speclab::Test("registry-concurrency")
+        .Then("every requirement and link is there exactly once", [] {
+            const std::string matrix = speclab::core::ExportTraceMatrixCSV();
+            Checks checks;
+            for (int t = 0; t < threadCount; ++t) {
+                // RiskLevel("HIGH") sets requiresValidation; SafetyClass is left empty here.
+                const std::string line = std::format("REQ-CONC-{}-0,HIGH,,true,false,T_CONC_{}_0", t, t);
+                checks.expect(matrix.find(line) != std::string::npos, line);
+            }
+            checks.expect(std::ranges::count(matrix, '\n') >= threadCount * perThread,
+                          "one matrix row per requirement");
+            checks.raise();
+        })
+        .Execute();
+}};
+
 const speclab::Register traceability{"Executing a requirement registers it and its test links", "unit", [] {
     auto requirement = speclab::Requirement("REQ-TRACE", "Registered on Execute")
                            .RiskLevel("CRITICAL")
@@ -128,7 +204,12 @@ const speclab::Register traceability{"Executing a requirement registers it and i
                   checks.expect(matrix.find("REQ-TRACE,CRITICAL,CLASS_C") != std::string::npos, matrix);
                   checks.expect(matrix.find("T_TRACE") != std::string::npos, "the executed test id");
                   checks.expect(matrix.find("T_TRACE_ELSEWHERE") != std::string::npos, "the associated test id");
-                  checks.expect(!speclab::core::HasUncoveredCriticalRequirements(),
+                  // Asked about this requirement, not about the registry as a whole: the registry
+                  // is process-wide, and other scenarios leave uncovered CRITICAL requirements
+                  // behind when the whole binary runs in one process.
+                  const std::vector<std::string> uncovered =
+                      speclab::core::GetUncoveredCriticalRequirementIds();
+                  checks.expect(std::ranges::find(uncovered, "REQ-TRACE") == uncovered.end(),
                                 "a CRITICAL requirement with a linked test is covered");
                   checks.raise();
               })

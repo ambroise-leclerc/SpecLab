@@ -268,6 +268,8 @@ requirement and its links, runs the tests, and returns one result per test with 
 metadata attached:
 
 ```cpp
+using speclab::core::Assertions;
+
 // Keep the requirement in a variable: Test() returns the test's builder, and Execute() is what
 // runs the tests and attaches the requirement's metadata to their results.
 auto requirement = speclab::Requirement("SRS-001", "The monitor displays vital signs within 2 s")

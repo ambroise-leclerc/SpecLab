@@ -34,32 +34,45 @@ export namespace speclab::core {
             static RequirementRegistry reg; return reg;
         }
 
+        /// Registers `req`, replacing an earlier record with the same id. Returns true when the id
+        /// was new. Re-registering updates the metadata: a risk level raised between two
+        /// registrations must reach the coverage gate, and keeping the first record silently would
+        /// hide it.
         bool registerRequirement(Requirement req) {
-            auto [it, inserted] = requirements_.emplace(req.id, std::move(req));
+            const std::lock_guard lock{mutex_};
+            const std::string id = req.id;
+            auto [it, inserted] = requirements_.insert_or_assign(id, std::move(req));
             return inserted;
         }
 
         bool hasRequirement(std::string_view id) const {
+            const std::lock_guard lock{mutex_};
             return requirements_.contains(std::string(id));
         }
 
-        const Requirement* getRequirement(std::string_view id) const {
+        /// By value, not by pointer: the registry is shared and mutable, so a pointer into its
+        /// maps could dangle as soon as another thread or another Execute() registers anything.
+        std::optional<Requirement> getRequirement(std::string_view id) const {
+            const std::lock_guard lock{mutex_};
             auto it = requirements_.find(std::string(id));
-            return it==requirements_.end()? nullptr : &it->second;
+            return it == requirements_.end() ? std::nullopt : std::optional<Requirement>{it->second};
         }
 
         void linkTestToRequirement(std::string_view testId, std::string_view requirementId) {
+            const std::lock_guard lock{mutex_};
             testToReq_[std::string(testId)].insert(std::string(requirementId));
             reqToTest_[std::string(requirementId)].insert(std::string(testId));
         }
 
-        const std::set<std::string>* getRequirementsForTest(std::string_view testId) const {
+        std::set<std::string> getRequirementsForTest(std::string_view testId) const {
+            const std::lock_guard lock{mutex_};
             auto it = testToReq_.find(std::string(testId));
-            return it == testToReq_.end() ? nullptr : &it->second;
+            return it == testToReq_.end() ? std::set<std::string>{} : it->second;
         }
 
         // Produce a simple CSV trace matrix (Requirement -> Tests)
         std::string exportTraceMatrixCSV() const {
+            const std::lock_guard lock{mutex_};
             std::string out = "RequirementID,RiskLevel,SafetyClass,RequiresValidation,RequiresAudit,TestIDs\n";
             for (const auto& [id, req] : requirements_) {
                 auto it = reqToTest_.find(id);
@@ -76,6 +89,7 @@ export namespace speclab::core {
         // Generate mapping rows for programmatic use
         struct TraceRow { std::string requirementId; std::vector<std::string> testIds; };
         std::vector<TraceRow> getTraceMatrix() const {
+            const std::lock_guard lock{mutex_};
             std::vector<TraceRow> rows;
             rows.reserve(requirements_.size());
             for (auto& [id, _] : requirements_) {
@@ -88,40 +102,51 @@ export namespace speclab::core {
             return rows;
         }
 
-        std::vector<const Requirement*> getAllRequirements() const {
-            std::vector<const Requirement*> out; out.reserve(requirements_.size());
+        std::vector<Requirement> getAllRequirements() const {
+            const std::lock_guard lock{mutex_};
+            std::vector<Requirement> out; out.reserve(requirements_.size());
             for (auto& [_, r] : requirements_) {
-                out.push_back(&r);
+                out.push_back(r);
             }
             return out;
         }
-        std::vector<const Requirement*> getUncoveredHighRisk() const {
-            std::vector<const Requirement*> missing;
+        std::vector<Requirement> getUncoveredHighRisk() const {
+            const std::lock_guard lock{mutex_};
+            std::vector<Requirement> missing;
             for (auto& [id, r] : requirements_) {
                 if (r.riskLevel == "HIGH" || r.riskLevel == "CRITICAL") {
-                    if (!reqToTest_.contains(id) || reqToTest_.at(id).empty()) missing.push_back(&r);
+                    if (!reqToTest_.contains(id) || reqToTest_.at(id).empty()) missing.push_back(r);
                 }
             }
             return missing;
         }
-        std::vector<const Requirement*> getUncoveredCritical() const {
-            std::vector<const Requirement*> missing;
+        std::vector<Requirement> getUncoveredCritical() const {
+            const std::lock_guard lock{mutex_};
+            std::vector<Requirement> missing;
             for (auto& [id, r] : requirements_) {
                 if (r.riskLevel == "CRITICAL") {
-                    if (!reqToTest_.contains(id) || reqToTest_.at(id).empty()) missing.push_back(&r);
+                    if (!reqToTest_.contains(id) || reqToTest_.at(id).empty()) missing.push_back(r);
                 }
             }
             return missing;
         }
-        const RequirementsConfig& getConfig() const noexcept { return config_; }
-        void setConfig(const RequirementsConfig& cfg) { config_ = cfg; }
+        RequirementsConfig getConfig() const {
+            const std::lock_guard lock{mutex_};
+            return config_;
+        }
+        void setConfig(const RequirementsConfig& cfg) {
+            const std::lock_guard lock{mutex_};
+            config_ = cfg;
+        }
         bool hasUncoveredCritical() const {
+            const std::lock_guard lock{mutex_};
             for (auto& [id, r] : requirements_) {
                 if ((r.riskLevel == "CRITICAL") && (!reqToTest_.contains(id) || reqToTest_.at(id).empty())) return true;
             }
             return false;
         }
         int riskScoreForTest(std::string_view testId) const {
+            const std::lock_guard lock{mutex_};
             auto it = testToReq_.find(std::string(testId));
             if (it == testToReq_.end()) return 0; // no requirements linked
             int maxScore = 0;
@@ -135,6 +160,7 @@ export namespace speclab::core {
             return maxScore;
         }
         std::string exportTraceMatrixHTML() const {
+            const std::lock_guard lock{mutex_};
             std::string html;
             html += "<html><head><meta charset='utf-8'><title>SpecLab Traceability</title>";
             html += "<style>body{font-family:Arial,Helvetica,sans-serif}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px;font-size:12px}th{background:#f0f0f0} .risk-HIGH{background:#ffe0cc} .risk-CRITICAL{background:#ffcccc;font-weight:bold}</style></head><body>";
@@ -162,6 +188,10 @@ export namespace speclab::core {
             return html;
         }
     private:
+        /// The registry is a process-wide singleton that TestSuite reads from parallel test
+        /// threads while Requirement::Execute() writes to it, so every accessor locks. Public
+        /// methods never call one another, so a plain mutex cannot deadlock here.
+        mutable std::mutex mutex_;
         std::unordered_map<std::string, Requirement> requirements_;
         std::unordered_map<std::string, std::set<std::string>> testToReq_;
         std::unordered_map<std::string, std::set<std::string>> reqToTest_;
@@ -183,8 +213,8 @@ export namespace speclab::core {
 
     inline void AugmentResultWithRequirements(TestResult& result) {
         if (result.testId.empty()) return;
-        if (auto ids = RequirementRegistry::instance().getRequirementsForTest(result.testId); ids) {
-            for (auto& id : *ids) result.addRequirementId(id);
+        for (const std::string& id : RequirementRegistry::instance().getRequirementsForTest(result.testId)) {
+            result.addRequirementId(id);
         }
     }
 
@@ -193,12 +223,12 @@ export namespace speclab::core {
         TestResult coverageResult(TestStatus::Passed, "All high-risk requirements covered");
         coverageResult.testId = "REQUIREMENT_COVERAGE";
         if (!missing.empty()) {
-            bool anyCritical = std::any_of(missing.begin(), missing.end(), [](const Requirement* r){ return r->riskLevel == "CRITICAL"; });
+            bool anyCritical = std::any_of(missing.begin(), missing.end(), [](const Requirement& r){ return r.riskLevel == "CRITICAL"; });
             coverageResult.status = anyCritical ? TestStatus::Critical : TestStatus::Failed;
             std::string list;
             for (std::size_t i=0;i<missing.size();++i){ 
                 if(i) list += ","; 
-                list += missing[i]->id; 
+                list += missing[i].id; 
             }
             coverageResult.message = "Uncovered high-risk requirements";
             coverageResult.errorDetails = list;
@@ -213,7 +243,7 @@ export namespace speclab::core {
     inline bool HasUncoveredCriticalRequirements() { return RequirementRegistry::instance().hasUncoveredCritical(); }
     inline std::vector<std::string> GetUncoveredCriticalRequirementIds() {
         std::vector<std::string> ids; ids.reserve(8);
-        for (auto* r : RequirementRegistry::instance().getUncoveredCritical()) ids.push_back(r->id);
+        for (const Requirement& r : RequirementRegistry::instance().getUncoveredCritical()) ids.push_back(r.id);
         return ids;
     }
 
