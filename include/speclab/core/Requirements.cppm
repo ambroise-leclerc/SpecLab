@@ -64,6 +64,27 @@ export namespace speclab::core {
             reqToTest_[std::string(requirementId)].insert(std::string(testId));
         }
 
+        /// Removes every test link of `requirementId`. Used when a requirement's tests did not
+        /// run: a stale link from an earlier execution would keep it looking covered.
+        void clearLinksForRequirement(std::string_view requirementId) {
+            const std::lock_guard lock{mutex_};
+            const std::string id{requirementId};
+            auto it = reqToTest_.find(id);
+            if (it == reqToTest_.end()) {
+                return;
+            }
+            for (const std::string& testId : it->second) {
+                auto testIt = testToReq_.find(testId);
+                if (testIt != testToReq_.end()) {
+                    testIt->second.erase(id);
+                    if (testIt->second.empty()) {
+                        testToReq_.erase(testIt);
+                    }
+                }
+            }
+            reqToTest_.erase(it);
+        }
+
         std::set<std::string> getRequirementsForTest(std::string_view testId) const {
             const std::lock_guard lock{mutex_};
             auto it = testToReq_.find(std::string(testId));
@@ -205,6 +226,35 @@ export namespace speclab::core {
 
     inline void LinkTestRequirement(std::string_view testId, std::string_view requirementId) {
         RequirementRegistry::instance().linkTestToRequirement(testId, requirementId);
+    }
+
+    /// Drops every test link of `requirementId`, leaving the requirement itself registered.
+    inline void ClearRequirementTestLinks(std::string_view requirementId) {
+        RequirementRegistry::instance().clearLinksForRequirement(requirementId);
+    }
+
+    /// Canonical spelling of a risk level: LOW, MEDIUM, HIGH or CRITICAL. The builders accept
+    /// "Critical" as well as "CRITICAL", while the coverage gate compares against the upper-case
+    /// form, so the spelling is normalised before anything is registered.
+    inline std::string NormalizeRiskLevel(std::string_view riskLevel) {
+        std::string upper;
+        upper.reserve(riskLevel.size());
+        for (const char character : riskLevel) {
+            upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(character))));
+        }
+        return upper;
+    }
+
+    /// Canonical spelling of a safety class: CLASS_A, CLASS_B or CLASS_C ("ClassC" and "class c"
+    /// included).
+    inline std::string NormalizeSafetyClass(std::string_view safetyClass) {
+        std::string upper = NormalizeRiskLevel(safetyClass);
+        std::erase(upper, ' ');
+        std::erase(upper, '_');
+        if (upper.size() == 6 && upper.starts_with("CLASS")) {
+            return std::format("CLASS_{}", upper.back());
+        }
+        return std::string{safetyClass};
     }
 
     inline std::string ExportTraceMatrixCSV() {

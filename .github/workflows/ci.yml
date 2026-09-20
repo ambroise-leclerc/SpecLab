@@ -367,6 +367,62 @@ jobs:
         ./pulse_oximeter_example
 
   # ============================================================================
+  # ThreadSanitizer
+  #
+  # The requirement registry is a process-wide singleton that TestSuite reads from parallel test
+  # threads while Requirement::Execute() writes to it, so its locking is load-bearing. Without it,
+  # TSan reports a data race in RequirementRegistry::registerRequirement and the concurrency
+  # self-test stops making progress. One leg is enough: this checks SpecLab's own synchronisation,
+  # not a platform.
+  # ============================================================================
+  linux-tsan:
+    name: Linux GCC 16.1.0 ThreadSanitizer
+    runs-on: ubuntu-latest
+    container:
+      image: gcc:16.1.0
+      options: --user root
+
+    steps:
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get install -y ninja-build git
+
+    - name: Checkout code
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        fetch-depth: 0
+        # No step pushes or otherwise authenticates to git; do not leave the token in .git/config.
+        persist-credentials: false
+
+    - name: Install CMake ${{ env.CMAKE_VERSION }}
+      uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
+      with:
+        cmakeVersion: ${{ env.CMAKE_VERSION }}
+
+    - name: Configure CMake
+      run: |
+        cmake -B build-tsan \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DENABLE_CACHE=OFF \
+          -DENABLE_SANITIZER_THREAD=ON \
+          -DSPECLAB_BUILD_EXAMPLES=OFF \
+          -DSPECLAB_BUILD_TESTS=ON
+
+    - name: Build SpecLab
+      run: cmake --build build-tsan --parallel
+
+    # halt_on_error=1: a reported race must fail the job rather than be printed and survived.
+    - name: Run self-tests under ThreadSanitizer
+      env:
+        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+      # A timeout, because the failure mode seen without the registry's mutex is a corrupted
+      # container that spins rather than a clean crash.
+      timeout-minutes: 15
+      run: ctest --test-dir build-tsan --output-on-failure --no-tests=error
+
+  # ============================================================================
   # macOS Apple Silicon (upstream Clang 21.1.8 + libc++)
   #
   # The configuration MduX verified for macOS (its ADR-013) and builds SpecLab with: arm64, upstream
@@ -441,7 +497,7 @@ jobs:
   medical-compliance:
     name: Medical Device Compliance Validation
     runs-on: windows-2022
-    needs: [windows-msvc, linux-gcc, linux-clang, macos-arm64]
+    needs: [windows-msvc, linux-gcc, linux-clang, linux-tsan, macos-arm64]
     
     steps:
     - name: Checkout code

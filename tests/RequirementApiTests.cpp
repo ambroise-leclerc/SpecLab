@@ -132,6 +132,81 @@ const speclab::Register disabledIsNotCovered{"A disabled requirement does not sa
         .Execute();
 }};
 
+const speclab::Register disablingAfterExecution{"Disabling an executed requirement removes its coverage", "unit", [] {
+    auto first = speclab::Requirement("REQ-DISABLE-LATER", "Ran once").RiskLevel("CRITICAL");
+    first.Test("T_DISABLE_LATER").Then("passes", [] {});
+    first.Execute();
+    const std::vector<std::string> uncoveredWhileEnabled =
+        speclab::core::GetUncoveredCriticalRequirementIds();
+    const bool coveredWhileEnabled =
+        std::ranges::find(uncoveredWhileEnabled, "REQ-DISABLE-LATER") == uncoveredWhileEnabled.end();
+
+    auto disabled = speclab::Requirement("REQ-DISABLE-LATER", "Now disabled").RiskLevel("CRITICAL");
+    disabled.Test("T_DISABLE_LATER").Then("does not run", [] {});
+    disabled.SetEnabled(false);
+    const std::vector<speclab::core::TestResult> results = disabled.Execute();
+
+    return speclab::Test("requirement-disabled-after-execution")
+        .Then("the earlier link is gone, so the requirement is an uncovered gap again",
+              [coveredWhileEnabled, results] {
+                  Checks checks;
+                  checks.expect(coveredWhileEnabled, "it was covered while enabled");
+                  checks.expect(results.size() == 1 && results[0].status == TestStatus::Skipped,
+                                "disabling yields one Skipped result");
+                  const std::vector<std::string> uncovered =
+                      speclab::core::GetUncoveredCriticalRequirementIds();
+                  checks.expect(std::ranges::find(uncovered, "REQ-DISABLE-LATER") != uncovered.end(),
+                                "it is an uncovered CRITICAL requirement again");
+                  checks.expect(speclab::core::ExportTraceMatrixCSV().find("T_DISABLE_LATER") == std::string::npos,
+                                "its test id is no longer in the matrix");
+                  checks.raise();
+              })
+        .Execute();
+}};
+
+const speclab::Register skippedTestIsNotCoverage{"A skipped test does not cover its requirement", "unit", [] {
+    auto requirement = speclab::Requirement("REQ-SKIPPED-TEST", "Its only test is disabled")
+                           .RiskLevel("CRITICAL");
+    requirement.Test("T_SKIPPED").Then("never runs", [] {}).SetEnabled(false);
+    const std::vector<speclab::core::TestResult> results = requirement.Execute();
+
+    return speclab::Test("requirement-skipped-test")
+        .Then("the test is Skipped and the requirement stays uncovered", [results] {
+            Checks checks;
+            checks.expect(results.size() == 1, "one result");
+            if (!results.empty()) {
+                checks.expect(results[0].status == TestStatus::Skipped, "the test is Skipped");
+            }
+            const std::vector<std::string> uncovered =
+                speclab::core::GetUncoveredCriticalRequirementIds();
+            checks.expect(std::ranges::find(uncovered, "REQ-SKIPPED-TEST") != uncovered.end(),
+                          "a requirement whose only test was skipped is not covered");
+            checks.expect(speclab::core::ExportTraceMatrixCSV().find("T_SKIPPED") == std::string::npos,
+                          "a skipped test is not linked");
+            checks.raise();
+        })
+        .Execute();
+}};
+
+const speclab::Register riskLevelSpelling{"Risk levels and safety classes are normalised", "unit", [] {
+    // The builder documents both spellings, e.g. RiskLevel("Critical"), but the registry compares
+    // against "CRITICAL". Without normalisation a "Critical" requirement produces no coverage gap.
+    speclab::Requirement("REQ-SPELLING", "Mixed case").RiskLevel("Critical").SafetyClass("ClassC").Execute();
+
+    return speclab::Test("requirement-risk-spelling")
+        .Then("the registry sees CRITICAL and CLASS_C", [] {
+            Checks checks;
+            const std::vector<std::string> uncovered =
+                speclab::core::GetUncoveredCriticalRequirementIds();
+            checks.expect(std::ranges::find(uncovered, "REQ-SPELLING") != uncovered.end(),
+                          "a 'Critical' requirement with no test is an uncovered gap");
+            checks.expect(speclab::core::ExportTraceMatrixCSV().find("REQ-SPELLING,CRITICAL,CLASS_C") != std::string::npos,
+                          "the matrix shows the canonical spellings");
+            checks.raise();
+        })
+        .Execute();
+}};
+
 const speclab::Register reregistration{"Re-executing a requirement updates its registered metadata", "unit", [] {
     speclab::Requirement("REQ-REREGISTER", "First registration").RiskLevel("LOW").Execute();
     auto raised = speclab::Requirement("REQ-REREGISTER", "Raised to CRITICAL").RiskLevel("CRITICAL");

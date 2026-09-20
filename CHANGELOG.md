@@ -29,8 +29,15 @@ happened once, to v0.1.0 (see below).
   unchanged.
 - `RegisterRequirement` updates an existing record instead of keeping the first one. A risk level
   raised between two registrations now reaches the coverage gate.
-- A **disabled** requirement is registered but its tests are no longer linked, so it cannot
-  satisfy `REQUIREMENT_COVERAGE` without anything having run.
+- **Coverage links are rebuilt from what each execution actually ran.** A requirement only counts
+  as covered by tests that ran and were not skipped, plus the ids given to `AssociateTest` (which
+  run elsewhere). This closes three ways a requirement could look covered with nothing verified:
+  a requirement disabled *after* an execution kept the links of that earlier run; a disabled
+  attached test (`Test("T").SetEnabled(false)`) was linked anyway; and a requirement with no test
+  at all was linked to its own synthetic result.
+- **Risk levels and safety classes are normalised** (`NormalizeRiskLevel`, `NormalizeSafetyClass`).
+  The builders document `RiskLevel("Critical")` and `SafetyClass("ClassC")`, but the coverage gate
+  compares against `CRITICAL` and `CLASS_C`, so those spellings produced no critical gap.
 - `FeatureBuilder::Requirement()`, `IEC62304ProcessBuilder::Requirement()` and the new
   `RequirementBuilder::Test()` return references into their containers, which are now `std::deque`.
   With `std::vector`, adding the next requirement or test invalidated a reference the caller still

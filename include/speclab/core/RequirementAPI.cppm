@@ -27,13 +27,16 @@ export namespace speclab {
          * @brief Set safety class for IEC 62304 compliance
          */
         RequirementBuilder& SafetyClass(std::string_view safetyClass) {
-            safetyClass_ = safetyClass;
-            
+            // Normalised on the way in, so the registry, the trace matrix and the metadata all
+            // carry one spelling. The coverage gate compares against the canonical form.
+            safetyClass_ = speclab::core::NormalizeSafetyClass(safetyClass);
+            const std::string_view canonical{safetyClass_};
+
             // Auto-set audit requirements based on safety class
-            if (safetyClass == "CLASS_C" || safetyClass == "ClassC") {
+            if (canonical == "CLASS_C") {
                 requiresAudit_ = true;
                 requiresValidation_ = true;
-            } else if (safetyClass == "CLASS_B" || safetyClass == "ClassB") {
+            } else if (canonical == "CLASS_B") {
                 requiresAudit_ = true;
             }
             
@@ -44,13 +47,14 @@ export namespace speclab {
          * @brief Set risk level for ISO 14971 compliance
          */
         RequirementBuilder& RiskLevel(std::string_view riskLevel) {
-            riskLevel_ = riskLevel;
-            
+            riskLevel_ = speclab::core::NormalizeRiskLevel(riskLevel);
+            const std::string_view canonical{riskLevel_};
+
             // Auto-escalate based on risk level
-            if (riskLevel == "CRITICAL" || riskLevel == "Critical") {
+            if (canonical == "CRITICAL") {
                 requiresValidation_ = true;
                 requiresAudit_ = true;
-            } else if (riskLevel == "HIGH" || riskLevel == "High") {
+            } else if (canonical == "HIGH") {
                 requiresValidation_ = true;
             }
             
@@ -122,6 +126,7 @@ export namespace speclab {
          */
         RequirementBuilder& AssociateTest(std::string_view testId) {
             tests_.push_back(std::string(testId));
+            associatedTests_.push_back(std::string(testId));
             return *this;
         }
 
@@ -161,12 +166,14 @@ export namespace speclab {
          * failures, which is the worst way for a test framework to be wrong.
          */
         std::vector<speclab::core::TestResult> Execute() {
-            // A disabled requirement is registered, so the coverage gate still sees it, but its
-            // tests are not linked: they did not run, and a link would let a disabled requirement
-            // satisfy REQUIREMENT_COVERAGE without anything being verified.
-            registerForTraceability(enabled_);
+            // The requirement is always registered, so the coverage gate sees it. Its test links
+            // are rebuilt from what this execution actually ran: a test that did not run must not
+            // make the requirement look covered, and a link left by an earlier execution must not
+            // survive the requirement being disabled.
+            registerForTraceability();
 
             std::vector<speclab::core::TestResult> results;
+            std::vector<std::string> testsThatRan;
 
             if (!enabled_) {
                 results.push_back(syntheticResult(speclab::core::TestStatus::Skipped,
@@ -182,9 +189,16 @@ export namespace speclab {
             } else {
                 results.reserve(testBuilders_.size());
                 for (TestBuilder& test : testBuilders_) {
-                    results.push_back(test.Execute());
+                    const speclab::core::TestResult result = test.Execute();
+                    // Only a test that actually ran covers the requirement.
+                    if (result.status != speclab::core::TestStatus::Skipped) {
+                        testsThatRan.push_back(test.getTestId());
+                    }
+                    results.push_back(result);
                 }
             }
+
+            relinkTests(testsThatRan);
 
             // Add requirement metadata to all results
             for (auto& result : results) {
@@ -242,9 +256,8 @@ export namespace speclab {
 
     private:
         /// Puts this requirement in the registry, so that ExportTraceMatrixCSV/HTML and the
-        /// REQUIREMENT_COVERAGE gate see it. `linkTests` is false for a disabled requirement,
-        /// whose tests do not run.
-        void registerForTraceability(bool linkTests) const {
+        /// REQUIREMENT_COVERAGE gate see it.
+        void registerForTraceability() const {
             speclab::core::RegisterRequirement({
                 .id = requirementId_,
                 .description = description_,
@@ -254,10 +267,26 @@ export namespace speclab {
                 .requiresValidation = requiresValidation_,
                 .source = complianceStandard_,
             });
-            if (linkTests) {
-                for (const std::string& testId : tests_) {
-                    speclab::core::LinkTestRequirement(testId, requirementId_);
-                }
+        }
+
+        /// Rebuilds this requirement's test links from one execution: the tests it ran and did not
+        /// skip, plus the ids associated for traceability, which run elsewhere. Links from an
+        /// earlier execution are dropped first, so disabling a requirement - or its tests - takes
+        /// its coverage away instead of leaving a stale link behind.
+        ///
+        /// Only ids of real tests are linked. The synthetic result of a requirement with no test
+        /// carries the requirement's own id, and linking that would make the requirement cover
+        /// itself - the exact false pass this API is meant to stop producing.
+        void relinkTests(const std::vector<std::string>& testsThatRan) const {
+            speclab::core::ClearRequirementTestLinks(requirementId_);
+            if (!enabled_) {
+                return;
+            }
+            for (const std::string& testId : testsThatRan) {
+                speclab::core::LinkTestRequirement(testId, requirementId_);
+            }
+            for (const std::string& testId : associatedTests_) {
+                speclab::core::LinkTestRequirement(testId, requirementId_);
             }
         }
 
@@ -286,6 +315,7 @@ export namespace speclab {
         std::unordered_map<std::string, std::string> resourceConstraints_;
         std::unordered_map<std::string, std::string> metadata_;
         std::vector<std::string> tests_;  // Test IDs for traceability, run here or elsewhere
+        std::vector<std::string> associatedTests_;  // AssociateTest() ids only: they run elsewhere
         // std::deque, not std::vector: Test() hands out references to its elements, and a vector
         // would invalidate them as soon as another test is added.
         std::deque<TestBuilder> testBuilders_;

@@ -296,6 +296,12 @@ std::print("{}", speclab::core::ExportTraceMatrixCSV());
 // SRS-001,HIGH,CLASS_B,true,true,T_DISPLAY_PIXELS,T_DISPLAY_RESPONSE
 ```
 
+A requirement counts as covered only by tests that **ran and were not skipped**, plus the ids given
+to `AssociateTest`, which run elsewhere. The links are rebuilt on every `Execute()`, so disabling a
+requirement, or one of its tests, takes its coverage away instead of leaving a stale link behind.
+Risk levels and safety classes are normalised, so `RiskLevel("Critical")` and `SafetyClass("ClassC")`
+reach the gate as `CRITICAL` and `CLASS_C`.
+
 A requirement with **no test of its own never returns an empty result list**: it returns one
 `Blocked` result naming it, so a caller counting failures cannot mistake it for a requirement whose
 tests all passed. A disabled requirement (`SetEnabled(false)`) returns one `Skipped` result.
