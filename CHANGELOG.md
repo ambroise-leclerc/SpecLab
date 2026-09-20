@@ -7,6 +7,42 @@ a release is a new patch release. Consumers such as MduX pin SpecLab by commit S
 name as documentation, and a tag that moves would silently change what that name refers to. That
 happened once, to v0.1.0 (see below).
 
+## [Unreleased]
+
+### Fixed
+- **The `Requirement`, `Feature` and `IEC62304Process` builders now run tests** (#25). Their
+  `Execute()` returned an empty vector: nothing ran, and a caller counting failures saw none, so a
+  suite that looked complete reported no failure. Now:
+  - `RequirementBuilder::Test(id)` attaches a test and returns its `TestBuilder`. `Execute()` runs
+    each one and returns its result, with the requirement's metadata and id attached.
+  - `Execute()` registers the requirement and its test links (including `AssociateTest` ids) in the
+    requirement registry, so `ExportTraceMatrixCSV/HTML` and the `REQUIREMENT_COVERAGE` gate see
+    them.
+  - A requirement with no test of its own returns one `Blocked` result instead of an empty list; a
+    disabled one returns `Skipped`. `Feature` and `IEC62304Process` report `Blocked` when they hold
+    no requirement.
+- The requirement registry is now locked. It is a process-wide singleton that `TestSuite` reads
+  from parallel test threads while `Requirement::Execute()` writes to it, which was a data race
+  on its `unordered_map`s (confirmed by ThreadSanitizer). Its accessors that used to return
+  pointers into those maps (`getRequirement`, `getRequirementsForTest`, `getAllRequirements`,
+  `getUncoveredHighRisk`, `getUncoveredCritical`) now return values; the free functions are
+  unchanged.
+- `RegisterRequirement` updates an existing record instead of keeping the first one. A risk level
+  raised between two registrations now reaches the coverage gate.
+- **Coverage links are rebuilt from what each execution actually ran.** A requirement only counts
+  as covered by tests that ran and were not skipped, plus the ids given to `AssociateTest` (which
+  run elsewhere). This closes three ways a requirement could look covered with nothing verified:
+  a requirement disabled *after* an execution kept the links of that earlier run; a disabled
+  attached test (`Test("T").SetEnabled(false)`) was linked anyway; and a requirement with no test
+  at all was linked to its own synthetic result.
+- **Risk levels and safety classes are normalised** (`NormalizeRiskLevel`, `NormalizeSafetyClass`).
+  The builders document `RiskLevel("Critical")` and `SafetyClass("ClassC")`, but the coverage gate
+  compares against `CRITICAL` and `CLASS_C`, so those spellings produced no critical gap.
+- `FeatureBuilder::Requirement()`, `IEC62304ProcessBuilder::Requirement()` and the new
+  `RequirementBuilder::Test()` return references into their containers, which are now `std::deque`.
+  With `std::vector`, adding the next requirement or test invalidated a reference the caller still
+  held.
+
 ## [0.2.0] - 2026-09-19
 
 ### Added

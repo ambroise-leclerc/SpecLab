@@ -180,6 +180,26 @@ Suite execution auto-appends synthetic `REQUIREMENT_COVERAGE` (and, when
 `abortOnCriticalGaps` is set, `REQUIREMENT_COVERAGE_PRE`) results — these are
 framework-emitted, not tests you register.
 
+`speclab::Requirement(…)`, `Feature(…)` and `IEC62304Process(…)` (module
+`core/RequirementAPI.cppm`) execute the tests attached to them since #25, and register
+themselves and their links on `Execute()`. Keep the invariant their self-tests pin
+(`tests/RequirementApiTests.cpp`): **these builders never return an empty result list.** A
+requirement with no test returns `Blocked`, a disabled one `Skipped`, and an empty feature or
+lifecycle process `Blocked`. An empty vector reads as "nothing failed" to a caller counting
+failures, which is what #25 was about. They hand out references into their containers, so those
+are `std::deque`, not `std::vector`.
+
+Coverage links are rebuilt on every `Execute()` from the tests that **ran and were not skipped**,
+plus `AssociateTest` ids; earlier links are cleared first. Keep that. Each of the three shapes it
+rules out was a real false pass: a requirement disabled after an execution, a disabled attached
+test, and a requirement with no test linking its own synthetic result (whose `testId` is the
+requirement id). Risk levels and safety classes are normalised on the way in, because the builders
+accept `"Critical"` while the gate compares `"CRITICAL"`.
+
+The registry's locking is checked by a ThreadSanitizer CI leg (`linux-tsan` in `ci.yml`). Without
+the mutex, TSan reports a race in `registerRequirement` and the concurrency self-test spins instead
+of finishing, which is why that job has a timeout.
+
 ## Conventions that bite
 
 - `SPECLAB_VERSION_*` and `SPECLAB_MEDICAL_DEVICE_COMPLIANCE=1` are defined by
